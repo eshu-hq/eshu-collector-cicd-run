@@ -261,7 +261,7 @@ func TestParityMaxRunsBound(t *testing.T) {
 	}
 
 	getenv := func(key string) string {
-		if key == "GITHUB_TOKEN" {
+		if key == "GITHUB_TOKEN" || key == "GITLAB_TOKEN" {
 			return "token-value"
 		}
 		return ""
@@ -305,6 +305,28 @@ func TestParityMaxRunsBound(t *testing.T) {
 		t.Error("LoadConfig(max_runs 101) = nil, want hard-cap rejection")
 	} else if !strings.Contains(err.Error(), "max_runs") {
 		t.Errorf("LoadConfig() error = %q, want max_runs range error", err.Error())
+	}
+
+	gitlabZero := `[{
+		"instance_id": "cicd-run-primary",
+		"collector_kind": "ci_cd_run",
+		"mode": "continuous",
+		"enabled": true,
+		"claims_enabled": true,
+		"configuration": {"targets": [{
+			"provider": "gitlab_ci",
+			"scope_id": "gitlab-ci://gitlab.com/eshu-hq/demo",
+			"repository": "eshu-hq/demo",
+			"token_env": "GITLAB_TOKEN",
+			"max_runs": 0
+		}]}
+	}]`
+	glConfig, err := LoadConfig(gitlabZero, "cicd-run-primary", getenv)
+	if err != nil {
+		t.Fatalf("LoadConfig(gitlab max_runs 0) error = %v, want nil", err)
+	}
+	if len(glConfig.GitLabTargets) != 1 || glConfig.GitLabTargets[0].MaxRuns != 10 {
+		t.Errorf("gitlab max_runs 0 wired MaxRuns = %v, want default 10", glConfig.GitLabTargets)
 	}
 }
 

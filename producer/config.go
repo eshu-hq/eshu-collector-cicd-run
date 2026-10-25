@@ -201,7 +201,7 @@ func selectInstance(instancesJSON, requestedID string) (desiredInstance, error) 
 	}
 }
 
-// validateInstance enforces the claim boundary: this binary only serves
+// validateInstance enforces the claim boundary: this library only serves
 // claim-capable instances. It mirrors validateCICDRunInstance minus the
 // core-owned workflow.Validate calls, which stay in the core.
 func validateInstance(instance desiredInstance) error {
