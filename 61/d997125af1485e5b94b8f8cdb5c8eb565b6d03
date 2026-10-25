@@ -1,0 +1,50 @@
+README.md
+  h_78a442cba0b3e6 1-90
+go.mod
+  h_78a442cba0b3e6 1-8
+go.sum
+  h_78a442cba0b3e6 1-16
+producer/config.go
+  h_78a442cba0b3e6 1-355
+producer/doc.go
+  h_78a442cba0b3e6 1-39
+producer/emit.go
+  h_78a442cba0b3e6 1-338
+producer/evidence.go
+  h_78a442cba0b3e6 1-239
+producer/github.go
+  h_78a442cba0b3e6 1-426
+producer/gitlab.go
+  h_78a442cba0b3e6 1-175
+producer/grant.go
+  h_78a442cba0b3e6 1-67
+producer/kinds.go
+  h_78a442cba0b3e6 1-112
+producer/parity_emit_test.go
+  h_78a442cba0b3e6 1-398
+producer/parity_test.go
+  h_78a442cba0b3e6 1-348
+producer/redact.go
+  h_78a442cba0b3e6 1-104
+producer/router.go
+  h_78a442cba0b3e6 1-70
+producer/telemetry.go
+  h_78a442cba0b3e6 1-70
+producer/urls.go
+  h_78a442cba0b3e6 1-134
+producer/warnings.go
+  h_78a442cba0b3e6 1-79
+testdata/8854-parity-cicd-run.json
+  h_78a442cba0b3e6 1-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "61d997125af1485e5b94b8f8cdb5c8eb565b6d03",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
