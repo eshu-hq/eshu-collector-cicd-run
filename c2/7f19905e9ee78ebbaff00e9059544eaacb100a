@@ -1,0 +1,32 @@
+README.md
+  h_78a442cba0b3e6 44-45,65-71
+producer/config.go
+  h_78a442cba0b3e6 274-277,286,305-308,317,346-363
+producer/emit.go
+  h_78a442cba0b3e6 292-298
+producer/evidence.go
+  h_78a442cba0b3e6 126-138
+producer/github.go
+  h_78a442cba0b3e6 140-142,145-146,386-389,392-396,400-416
+producer/gitlab.go
+  h_78a442cba0b3e6 76-77
+producer/grant.go
+  h_78a442cba0b3e6 24-30
+producer/parity_emit_test.go
+  h_78a442cba0b3e6 258-260
+producer/parity_golden_test.go
+  h_78a442cba0b3e6 1-290
+producer/parity_test.go
+  h_78a442cba0b3e6 249-310,325-327
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c27f19905e9ee78ebbaff00e9059544eaacb100a",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
