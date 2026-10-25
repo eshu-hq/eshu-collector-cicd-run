@@ -123,6 +123,19 @@ type DeploymentEvidence struct {
 	State          string
 	EnvironmentURL string
 	LogURL         string
+	// OriginalEnvironment is the parent deployment's environment before a
+	// redeploy retargeted it; the status value wins when present.
+	OriginalEnvironment string
+	// Description is the deployment (status-less) or status description.
+	Description string
+	// CreatedAt/UpdatedAt are the status timestamps when present,
+	// otherwise the parent deployment's.
+	CreatedAt string
+	UpdatedAt string
+	// ProductionEnvironment/TransientEnvironment are the parent
+	// deployment's environment-classification flags.
+	ProductionEnvironment bool
+	TransientEnvironment  bool
 }
 
 // WarningEvidence describes one non-fatal collection warning. Warnings

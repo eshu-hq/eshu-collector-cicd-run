@@ -246,6 +246,68 @@ func TestParityHostileInputsFailClosed(t *testing.T) {
 	}
 }
 
+func TestParityMaxRunsBound(t *testing.T) {
+	t.Parallel()
+
+	for raw, want := range map[int]int{0: 10, 1: 1, 100: 100} {
+		if got, err := resolveMaxRuns(raw); err != nil || got != want {
+			t.Errorf("resolveMaxRuns(%d) = (%d, %v), want (%d, nil)", raw, got, err, want)
+		}
+	}
+	for _, raw := range []int{-1, 101} {
+		if got, err := resolveMaxRuns(raw); err == nil {
+			t.Errorf("resolveMaxRuns(%d) = (%d, nil), want range rejection", raw, got)
+		}
+	}
+
+	getenv := func(key string) string {
+		if key == "GITHUB_TOKEN" {
+			return "token-value"
+		}
+		return ""
+	}
+	zeroRuns := `[{
+		"instance_id": "cicd-run-primary",
+		"collector_kind": "ci_cd_run",
+		"mode": "continuous",
+		"enabled": true,
+		"claims_enabled": true,
+		"configuration": {"targets": [{
+			"provider": "github_actions",
+			"scope_id": "ci-cd:github-actions:example-org/example-repo",
+			"repository": "example-org/example-repo",
+			"token_env": "GITHUB_TOKEN",
+			"max_runs": 0
+		}]}
+	}]`
+	config, err := LoadConfig(zeroRuns, "cicd-run-primary", getenv)
+	if err != nil {
+		t.Fatalf("LoadConfig(max_runs 0) error = %v, want nil", err)
+	}
+	if len(config.GitHubTargets) != 1 || config.GitHubTargets[0].MaxRuns != 10 {
+		t.Errorf("max_runs 0 wired MaxRuns = %v, want default 10", config.GitHubTargets)
+	}
+	overCap := `[{
+		"instance_id": "cicd-run-primary",
+		"collector_kind": "ci_cd_run",
+		"mode": "continuous",
+		"enabled": true,
+		"claims_enabled": true,
+		"configuration": {"targets": [{
+			"provider": "github_actions",
+			"scope_id": "ci-cd:github-actions:example-org/example-repo",
+			"repository": "example-org/example-repo",
+			"token_env": "GITHUB_TOKEN",
+			"max_runs": 101
+		}]}
+	}]`
+	if _, err := LoadConfig(overCap, "cicd-run-primary", getenv); err == nil {
+		t.Error("LoadConfig(max_runs 101) = nil, want hard-cap rejection")
+	} else if !strings.Contains(err.Error(), "max_runs") {
+		t.Errorf("LoadConfig() error = %q, want max_runs range error", err.Error())
+	}
+}
+
 func TestParityClaimIDNamespace(t *testing.T) {
 	t.Parallel()
 
@@ -260,8 +322,9 @@ func TestParityClaimIDNamespace(t *testing.T) {
 	}
 }
 
-// testAuthorizer is the test-only stand-in for a core-issued grant: the
-// production binary wires DenyAllAuthorizer until #6709 issuance lands.
+// testAuthorizer is the test-only stand-in for a core-issued grant: this
+// repository ships a library only, so library use must attach an
+// authorizer (DenyAllAuthorizer until #6709 issuance lands).
 type testAuthorizer struct{}
 
 func testClaim(router Router, config Config, scopeID, generationID string) collector.Claim {

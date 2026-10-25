@@ -271,6 +271,10 @@ func mapGitHubTarget(target targetJSON, getenv func(string) string) (ResolvedTar
 		return ResolvedTarget{}, fmt.Errorf("token_env %s did not resolve a credential", tokenEnv)
 	}
 	repository := strings.Trim(target.Repository, "/")
+	maxRuns, err := resolveMaxRuns(target.MaxRuns)
+	if err != nil {
+		return ResolvedTarget{}, err
+	}
 	return ResolvedTarget{
 		Provider:     ProviderGitHubActions,
 		ScopeID:      strings.TrimSpace(target.ScopeID),
@@ -279,7 +283,7 @@ func mapGitHubTarget(target targetJSON, getenv func(string) string) (ResolvedTar
 		Allowed:      cleanStrings(target.AllowedRepositories),
 		APIBaseURL:   strings.TrimRight(strings.TrimSpace(target.APIBaseURL), "/"),
 		SourceURI:    strings.TrimSpace(firstNonBlank(target.SourceURI, "https://github.com/"+repository)),
-		MaxRuns:      target.MaxRuns,
+		MaxRuns:      maxRuns,
 		MaxJobs:      target.MaxJobs,
 		MaxArtifacts: target.MaxArtifacts,
 	}, nil
@@ -298,6 +302,10 @@ func mapGitLabTarget(target targetJSON, getenv func(string) string) (ResolvedTar
 		return ResolvedTarget{}, fmt.Errorf("token_env %s did not resolve a credential", tokenEnv)
 	}
 	repository := strings.Trim(target.Repository, "/")
+	maxRuns, err := resolveMaxRuns(target.MaxRuns)
+	if err != nil {
+		return ResolvedTarget{}, err
+	}
 	return ResolvedTarget{
 		Provider:   ProviderGitLabCI,
 		ScopeID:    strings.TrimSpace(target.ScopeID),
@@ -306,7 +314,7 @@ func mapGitLabTarget(target targetJSON, getenv func(string) string) (ResolvedTar
 		Allowed:    cleanStrings(target.AllowedRepositories),
 		APIBaseURL: strings.TrimRight(strings.TrimSpace(target.APIBaseURL), "/"),
 		SourceURI:  strings.TrimSpace(firstNonBlank(target.SourceURI, "https://gitlab.com/"+repository)),
-		MaxRuns:    target.MaxRuns,
+		MaxRuns:    maxRuns,
 		MaxJobs:    target.MaxJobs,
 	}, nil
 }
@@ -333,6 +341,24 @@ func ownerID(getenv func(string) string) string {
 		}
 	}
 	return "collector-cicd-run"
+}
+
+// resolveMaxRuns ports the in-tree run-window bound
+// (ghactionsruntime/source_target.go): 0 selects the default of 10, values
+// above the hard cap of 100 are rejected. The emission half carries the
+// bound for the host fetch loop; no fetch loop ships here.
+func resolveMaxRuns(raw int) (int, error) {
+	const (
+		defaultMaxRuns = 10
+		maxRunPages    = 100
+	)
+	if raw == 0 {
+		return defaultMaxRuns, nil
+	}
+	if raw < 0 || raw > maxRunPages {
+		return 0, fmt.Errorf("max_runs must be between 0 and %d (0 uses the default of %d)", maxRunPages, defaultMaxRuns)
+	}
+	return raw, nil
 }
 
 func cleanStrings(values []string) []string {

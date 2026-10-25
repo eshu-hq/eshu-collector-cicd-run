@@ -255,8 +255,9 @@ func TestParityCredentialedURIFailsSDKValidation(t *testing.T) {
 	}
 }
 
-// testAuthorizer is the test-only stand-in for a core-issued grant: the
-// production binary wires DenyAllAuthorizer until #6709 issuance lands.
+// testAuthorizer is the test-only stand-in for a core-issued grant: this
+// repository ships a library only, so library use must attach an
+// authorizer (DenyAllAuthorizer until #6709 issuance lands).
 
 func (testAuthorizer) Authorize(claim collector.Claim) error {
 	if strings.TrimSpace(claim.FencingToken) == "" {

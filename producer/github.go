@@ -137,12 +137,15 @@ func pipelineDefinitionFact(ctx emissionContext, provider Provider, evidence Evi
 	payload["workflow_path"] = strings.TrimSpace(workflow.Path)
 	payload["workflow_state"] = strings.TrimSpace(workflow.State)
 	payload["trigger"] = strings.TrimSpace(workflow.Trigger)
-	payload["repository_id"] = ""
+	// repository_id is deliberately omitted: the port cannot compute the
+	// canonical repository ID (needs SDK CanonicalRepositoryID, cutover
+	// blocker on eshu-hq/eshu#8854). provider_repository_id always emits.
 	payload["provider_repository_id"] = providerRepositoryID(ctx, provider, evidence)
 	payload["definition_kind"] = "workflow"
+	// NOTE(expected-diverge): in-tree pins repository_id to the canonical
+	// ID here, so this key differs from in-tree until the SDK helper lands.
 	stableKey := identity.StableID(KindPipelineDefinition, map[string]any{
 		"provider":      string(provider),
-		"repository_id": payload["repository_id"],
 		"workflow_id":   payload["workflow_id"],
 		"workflow_path": payload["workflow_path"],
 	})
@@ -161,7 +164,6 @@ func runFact(ctx emissionContext, provider Provider, evidence Evidence) (collect
 	payload["commit_sha"] = strings.TrimSpace(evidence.CommitSHA)
 	// repository_id: unset pending the SDK canonical-ID helper (see
 	// pipelineDefinitionFact). provider_repository_id always emits.
-	payload["repository_id"] = ""
 	payload["provider_repository_id"] = providerRepositoryID(ctx, provider, evidence)
 	payload["repository_url"] = strings.TrimSpace(evidence.Repository.HTMLURL)
 	payload["actor"] = strings.TrimSpace(evidence.Actor)
@@ -381,31 +383,37 @@ func deploymentFact(ctx emissionContext, provider Provider, evidence Evidence, d
 		"ref":                    strings.TrimSpace(deployment.Ref),
 		"task":                   strings.TrimSpace(deployment.Task),
 		"state":                  strings.TrimSpace(deployment.State),
-		"original_environment":   "",
-		"description":            "",
-		"created_at":             "",
-		"updated_at":             "",
+		"original_environment":   strings.TrimSpace(deployment.OriginalEnvironment),
+		"description":            strings.TrimSpace(deployment.Description),
+		"created_at":             strings.TrimSpace(deployment.CreatedAt),
+		"updated_at":             strings.TrimSpace(deployment.UpdatedAt),
 		"environment_url":        environmentURL,
 		"log_url":                logURL,
-		"production_environment": false,
-		"transient_environment":  false,
-		// repository_id: unset pending the SDK canonical-ID helper (see
-		// pipelineDefinitionFact).
-		"repository_id": "",
+		"production_environment": deployment.ProductionEnvironment,
+		"transient_environment":  deployment.TransientEnvironment,
+		// NOTE: repository_id is deliberately omitted (cannot compute the
+		// canonical ID without SDK CanonicalRepositoryID; cutover blocker
+		// on eshu-hq/eshu#8854). provider_repository_id always emits.
 	}
 	if err := mergeContractPayload(payload, func() (map[string]any, error) {
 		return factschema.EncodeCICDDeploymentEvent(cicdrunv1.DeploymentEvent{
-			Provider:       string(provider),
-			DeploymentID:   deploymentID,
-			Environment:    strings.TrimSpace(deployment.Environment),
-			SHA:            strings.TrimSpace(deployment.SHA),
-			StatusID:       optionalString(statusID),
-			Ref:            optionalString(strings.TrimSpace(deployment.Ref)),
-			Task:           optionalString(strings.TrimSpace(deployment.Task)),
-			State:          optionalString(strings.TrimSpace(deployment.State)),
-			EnvironmentURL: optionalString(environmentURL),
-			LogURL:         optionalString(logURL),
-			RepositoryID:   nil,
+			Provider:              string(provider),
+			DeploymentID:          deploymentID,
+			Environment:           strings.TrimSpace(deployment.Environment),
+			SHA:                   strings.TrimSpace(deployment.SHA),
+			StatusID:              optionalString(statusID),
+			Ref:                   optionalString(strings.TrimSpace(deployment.Ref)),
+			Task:                  optionalString(strings.TrimSpace(deployment.Task)),
+			State:                 optionalString(strings.TrimSpace(deployment.State)),
+			EnvironmentURL:        optionalString(environmentURL),
+			LogURL:                optionalString(logURL),
+			OriginalEnvironment:   optionalString(strings.TrimSpace(deployment.OriginalEnvironment)),
+			Description:           optionalString(strings.TrimSpace(deployment.Description)),
+			CreatedAt:             optionalString(strings.TrimSpace(deployment.CreatedAt)),
+			UpdatedAt:             optionalString(strings.TrimSpace(deployment.UpdatedAt)),
+			ProductionEnvironment: optionalBool(deployment.ProductionEnvironment),
+			TransientEnvironment:  optionalBool(deployment.TransientEnvironment),
+			RepositoryID:          nil,
 		})
 	}); err != nil {
 		return collector.Fact{}, err

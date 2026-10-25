@@ -73,8 +73,8 @@ func gitLabRunFact(ctx emissionContext, provider Provider, evidence Evidence) (c
 	payload["branch"] = strings.TrimSpace(evidence.Branch)
 	payload["commit_sha"] = strings.TrimSpace(evidence.CommitSHA)
 	// repository_id: unset pending the SDK canonical-ID helper (see
-	// pipelineDefinitionFact). provider_repository_id always emits.
-	payload["repository_id"] = ""
+	// pipelineDefinitionFact in github.go). provider_repository_id always
+	// emits.
 	payload["provider_repository_id"] = providerRepositoryID(ctx, provider, evidence)
 	payload["repository_url"] = repositoryURL
 	payload["actor"] = strings.TrimSpace(evidence.Actor)

@@ -289,6 +289,13 @@ func optionalString(value string) *string {
 	return stringPtr(value)
 }
 
+// optionalBool returns a pointer to value, matching the DeploymentEvent
+// contract's *bool "omitempty" optional fields. False is a meaningful
+// observation (an explicitly non-production deployment), never absent.
+func optionalBool(value bool) *bool {
+	return boolPtr(value)
+}
+
 func boolPtr(value bool) *bool {
 	return &value
 }

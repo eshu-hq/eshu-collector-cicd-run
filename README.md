@@ -41,6 +41,8 @@ producer/            emission-half port (package producer)
   github.go          github_actions fact builders (8 of 9 kinds + pipeline)
   gitlab.go          gitlab_ci fact builders (run/job/artifact/warning)
   warnings.go        ci.warning builders + transport-level synthesis
+  parity_golden_test.go
+                     in-tree golden stable keys + payload spot vectors
   redact.go          URL/text sanitizers (stdlib-only)
   grant.go           fail-closed grant stub (DenyAllAuthorizer)
   urls.go            provider locator helpers
@@ -60,8 +62,13 @@ GOPROXY=proxy.golang.org GOWORK=off go vet ./...
 The parity suite drives the ported producer from the checked-in fixture
 and asserts kinds, stable-key determinism and generation-agnosticism,
 claim/generation fencing, and every failure signal — including hostile
-inputs failing closed. Every emitted `complete`/`partial`/`retryable`/
-`terminal` result additionally validates against the pinned SDK
+inputs failing closed. `parity_golden_test.go` pins every emitted
+stable key byte-identical to the in-tree producer (cut from
+`go/internal/collector/cicdrun` on the 8854 PREP branch), with
+`ci.pipeline_definition` as the single documented expected-diverge
+(uncomputable canonical `repository_id` until the SDK exports the
+helper). Every emitted `complete`/`partial`/`retryable`/`terminal`
+result additionally validates against the pinned SDK
 `collector.Validator`, so the suite proves interop with the exact SDK
 pair, not just self-consistency.
 
