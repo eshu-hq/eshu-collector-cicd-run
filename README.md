@@ -19,8 +19,8 @@ cancelled-no-result).
 Exact published SDK pair, no `replace` directives, no workspace:
 
 ```text
-github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.2
-github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.2
+github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.3
+github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.5
 ```
 
 Resolution verified through the public Go proxy

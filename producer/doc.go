@@ -12,8 +12,8 @@
 // partial+warning / unchanged / retryable / terminal / cancelled).
 // Facts use the exact published SDK pair:
 //
-//	require github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.2
-//	require github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.2
+//	require github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.3
+//	require github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.5
 //
 // with no replace directives and no workspace.
 //
