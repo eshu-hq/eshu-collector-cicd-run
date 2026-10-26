@@ -17,7 +17,7 @@ import (
 // OPEN GAP (P1): the opaque-userinfo predicate lives in-tree only
 // (go/internal/urlredact.CarriesUserinfo, consulted by the published SDK
 // as the unexported opaqueHasAuthority in
-// github.com/eshu-hq/eshu-sdk/collector@v0.1.0-rc.2/validation.go:265).
+// github.com/eshu-hq/eshu-sdk/collector@v0.1.0-rc.3/validation.go:267).
 // The SDK exports no equivalent, so this port approximates the opaque
 // case with a conservative local check and relies on the SDK Validator as
 // the fail-closed backstop (ValidateResult rejects any source_ref URI
