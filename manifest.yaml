@@ -1,0 +1,77 @@
+apiVersion: eshu.dev/v1alpha1
+kind: ComponentPackage
+metadata:
+  id: dev.eshu.collector.cicd-run
+  name: CI/CD run collector
+  publisher: eshu-hq
+  version: 0.1.0
+spec:
+  compatibleCore: ">=0.0.5 <0.2.0"
+  componentType: collector
+  collectorKinds:
+    - ci_cd_run
+  runtime:
+    sdkProtocol: collector-sdk/v1alpha1
+    adapter: process
+  artifacts:
+    - platform: linux/amd64
+      image: ghcr.io/eshu-hq/eshu-collector-cicd-run@sha256:0000000000000000000000000000000000000000000000000000000000000000
+  emittedFacts:
+    - kind: ci.pipeline_definition
+      payloadSchemaRef: ci.pipeline_definition
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: ci.run
+      payloadSchemaRef: ci.run
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: ci.job
+      payloadSchemaRef: ci.job
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: ci.step
+      payloadSchemaRef: ci.step
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: ci.artifact
+      payloadSchemaRef: ci.artifact
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: ci.trigger_edge
+      payloadSchemaRef: ci.trigger_edge
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: ci.environment_observation
+      payloadSchemaRef: ci.environment_observation
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: ci.deployment_event
+      payloadSchemaRef: ci.deployment_event
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: ci.warning
+      payloadSchemaRef: ci.warning
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+  telemetry:
+    # Declared only: the collector emits no metric under this prefix. The
+    # eshu_dp_ci_cd_run_* signals stay host-side; see producer/telemetry.go.
+    metricsPrefix: eshu_dp_cicd_run_collector_

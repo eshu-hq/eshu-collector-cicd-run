@@ -1,0 +1,55 @@
+# Example component activation config for the CI/CD run collector. Copy it,
+# replace the placeholder scope and credentials, and point the environment
+# variables at real credentials. It holds no secrets: token_env and the
+# github_app_*_env keys NAME environment variables the worker process
+# exports; their values never appear here, in facts, in logs, or in
+# statuses.
+#
+# Cutover identity. When this activation replaces the in-tree CI/CD run
+# collector, these values must equal the in-tree ones, or every stable fact
+# key changes:
+#   host.scope.id  = the in-tree target's scope_id
+#   host.sourceSystem = the in-tree source system (ci_cd_run)
+# The activation instance id (--instance) must be a NEW id, different from the
+# in-tree collector instance id: a duplicate collector instance id is a
+# coordinator configuration error, and the coordinator does not start while the
+# duplicate exists. Only the payload's collector_instance_id changes; stable
+# keys do not.
+# The values below are placeholders. Read the real scope id and source system
+# from the live in-tree configuration; do not invent new ones.
+host:
+  # Source system recorded on every fact. Match the claim the coordinator plans.
+  sourceSystem: ci_cd_run
+  scope:
+    # One activation covers the targets of one ci_cd_run instance. Each
+    # target keeps its own scope id; scope ids are part of every stable fact
+    # key, so choose them once and keep them.
+    id: ci-cd:github-actions:example-org/example-repo
+    kind: ci_cd_run_scope
+process:
+  command: ./collector
+  args:
+    - --sdk-stdio
+  # A windowed run observation returns more than the host's default
+  # 4 MiB stdout cap. Raise this together with config.limits.maxResultBytes;
+  # the collector fails terminal with result_budget_exceeded rather than let
+  # the host drop an oversized result.
+  stdout_limit_bytes: 67108864
+config:
+  # Targets mirror the targetJSON operator shape in producer/config.go.
+  # provider is github_actions (the default when omitted) or gitlab_ci.
+  # Secrets travel by env reference, never inline. auth_mode selects the
+  # credential shape: token_env (the default when omitted), host_minted, or
+  # github_app; shapes never mix.
+  targets:
+    - provider: github_actions
+      scope_id: ci-cd:github-actions:example-org/example-repo
+      repository: example-org/example-repo
+      token_env: GITHUB_TOKEN
+      allowed_repositories:
+        - example-org/example-repo
+      api_base_url: https://api.github.com
+      max_runs: 10
+      max_jobs: 25
+      max_artifacts: 25
+      max_deployments: 10
