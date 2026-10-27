@@ -115,8 +115,12 @@ func TestHandleCancelledEvidenceReturnsNoResult(t *testing.T) {
 
 	handler := Handler{Getenv: handlerEnv()}
 	evidence := producer.Evidence{Provider: "github_actions", Cancelled: true}
-	if _, err := handler.Handle(context.Background(), handlerRequest(t, handlerClaim(), evidence)); err == nil {
-		t.Error("Handle(cancelled) = nil, want the cancellation error (no result)")
+	_, err := handler.Handle(context.Background(), handlerRequest(t, handlerClaim(), evidence))
+	if err == nil {
+		t.Fatal("Handle(cancelled) = nil, want the cancellation error (no result)")
+	}
+	if !producer.IsCancelled(err) {
+		t.Errorf("Handle(cancelled) error = %v, want the producer cancellation sentinel", err)
 	}
 }
 
@@ -148,6 +152,34 @@ func TestHandleForeignClaimTerminalFails(t *testing.T) {
 	}
 	if len(result.Facts) != 0 {
 		t.Errorf("Handle() facts = %d, want 0: a foreign claim never emits", len(result.Facts))
+	}
+}
+
+func TestHandleForeignClaimWithCancelSubstringTerminalFails(t *testing.T) {
+	t.Parallel()
+
+	handler := Handler{Getenv: handlerEnv()}
+	claim := handlerClaim()
+	claim.InstanceID = "cicd-run-cancel-drill"
+	result, err := handler.Handle(context.Background(), handlerRequest(t, claim, emptyEvidence()))
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil: an InstanceID containing \"cancel\" must not misclassify a binding failure as a cancellation", err)
+	}
+	if result.State != sdk.ResultTerminal {
+		t.Errorf("Handle() state = %q, want %q", result.State, sdk.ResultTerminal)
+	}
+	if len(result.Facts) != 0 {
+		t.Errorf("Handle() facts = %d, want 0: a foreign claim never emits", len(result.Facts))
+	}
+}
+
+func TestHandlerZeroValueGetenvFallsBackToProcessEnvironment(t *testing.T) {
+	const marker = `[{"instance_id":"zero-value-probe"}]`
+	t.Setenv(producer.EnvCollectorInstances, marker)
+
+	var handler Handler
+	if got := handler.getenv(producer.EnvCollectorInstances); got != marker {
+		t.Errorf("Handler{}.getenv(%q) = %q, want the process environment value", producer.EnvCollectorInstances, got)
 	}
 }
 

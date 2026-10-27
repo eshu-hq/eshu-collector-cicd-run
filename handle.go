@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -53,8 +54,8 @@ func (hostAdmittedAuthorizer) Authorize(sdk.Claim) error {
 type Handler struct {
 	// Getenv resolves the activation environment (the
 	// ESHU_COLLECTOR_INSTANCES_JSON operator shape plus the credential
-	// env references its targets name); nil selects os.Getenv at the
-	// call site in cmd/collector.
+	// env references its targets name); nil falls back to os.Getenv,
+	// which is what the binary in cmd/collector injects.
 	Getenv func(string) string
 	// Log receives one bounded diagnostic line per failed claim; nil
 	// discards it. The binary points it at stderr, which the extension
@@ -140,11 +141,12 @@ func decodeReason(err error) string {
 	return "invalid JSON"
 }
 
-// isCancellation reports the producer's no-result cancellation without
-// matching its message: any error naming cancellation ends the command
-// with no result.
+// isCancellation reports the producer's no-result cancellation: only the
+// producer's sentinel ends the command with no result. It never matches
+// message text, so operator-chosen strings echoed into other errors
+// cannot misclassify a serving failure as a cancellation.
 func isCancellation(err error) bool {
-	return err != nil && strings.Contains(strings.ToLower(err.Error()), "cancel")
+	return producer.IsCancelled(err)
 }
 
 // terminalResult terminal-fails a claim the satellite cannot serve. It
@@ -186,5 +188,5 @@ func (h Handler) getenv(key string) string {
 	if h.Getenv != nil {
 		return h.Getenv(key)
 	}
-	return ""
+	return os.Getenv(key)
 }

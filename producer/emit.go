@@ -16,6 +16,15 @@ import (
 // the caller must stop without committing anything.
 var errCancelled = errors.New("claim cancelled: no result")
 
+// IsCancelled reports whether err is the producer's no-result
+// cancellation. It matches the sentinel via errors.Is, never message
+// text, so operator-chosen strings (instance IDs, provider names)
+// echoed into other errors cannot misclassify a serving failure as a
+// cancellation.
+func IsCancelled(err error) bool {
+	return errors.Is(err, errCancelled)
+}
+
 // RepositoryEvidence carries the provider-shaped repository locator the
 // normalized fact payloads derive provenance from.
 
