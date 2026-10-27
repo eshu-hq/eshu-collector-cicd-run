@@ -41,34 +41,57 @@ type desiredInstance struct {
 // runtime the target builds under: "github_actions" (the default when
 // omitted, backward compatible per #5427) or "gitlab_ci". Secrets travel
 // by env reference, never inline. MaxArtifacts is GitHub-Actions-only and
-// silently ignored for gitlab_ci.
+// silently ignored for gitlab_ci. AuthMode selects the credential shape:
+// "token_env" (the default when omitted), "host_minted", or "github_app".
+// The github_app_*_env references resolve the App ID, installation ID,
+// and private key; they must be empty unless auth_mode is "github_app",
+// and token_env must be empty then. MaxDeployments bounds the GitHub
+// Deployments API window.
 type targetJSON struct {
-	Provider            string   `json:"provider"`
-	ScopeID             string   `json:"scope_id"`
-	Repository          string   `json:"repository"`
-	TokenEnv            string   `json:"token_env"`
-	AllowedRepositories []string `json:"allowed_repositories"`
-	APIBaseURL          string   `json:"api_base_url"`
-	MaxRuns             int      `json:"max_runs"`
-	MaxJobs             int      `json:"max_jobs"`
-	MaxArtifacts        int      `json:"max_artifacts"`
-	SourceURI           string   `json:"source_uri"`
+	Provider                   string   `json:"provider"`
+	ScopeID                    string   `json:"scope_id"`
+	Repository                 string   `json:"repository"`
+	TokenEnv                   string   `json:"token_env"`
+	AuthMode                   string   `json:"auth_mode"`
+	HostTokenFile              string   `json:"host_token_file"`
+	GitHubAppIDEnv             string   `json:"github_app_id_env"`
+	GitHubAppInstallationIDEnv string   `json:"github_app_installation_id_env"`
+	GitHubAppPrivateKeyEnv     string   `json:"github_app_private_key_env"`
+	AllowedRepositories        []string `json:"allowed_repositories"`
+	APIBaseURL                 string   `json:"api_base_url"`
+	MaxRuns                    int      `json:"max_runs"`
+	MaxJobs                    int      `json:"max_jobs"`
+	MaxArtifacts               int      `json:"max_artifacts"`
+	MaxDeployments             int      `json:"max_deployments"`
+	SourceURI                  string   `json:"source_uri"`
 }
 
 // ResolvedTarget is one validated target with its credential resolved
 // from the environment into a runtime-only field. A token is never copied
 // into desired collector config output, facts, logs, or metric labels.
+// For auth_mode "github_app" the credential is the resolved App triple
+// (ID, installation ID, private key) with Token empty; the per-claim
+// installation-token mint executes host-side. For "host_minted" the
+// credential is the host token file path with Token empty; per-claim
+// resolution executes host-side. MaxDeployments carries the bounded
+// Deployments API window for the host fetch loop.
 type ResolvedTarget struct {
-	Provider     Provider
-	ScopeID      string
-	Repository   string
-	Token        string
-	Allowed      []string
-	APIBaseURL   string
-	SourceURI    string
-	MaxRuns      int
-	MaxJobs      int
-	MaxArtifacts int
+	Provider                Provider
+	ScopeID                 string
+	Repository              string
+	Token                   string
+	AuthMode                string
+	HostTokenFile           string
+	GitHubAppID             string
+	GitHubAppInstallationID string
+	GitHubAppPrivateKey     string
+	Allowed                 []string
+	APIBaseURL              string
+	SourceURI               string
+	MaxRuns                 int
+	MaxJobs                 int
+	MaxArtifacts            int
+	MaxDeployments          int
 }
 
 // Config is the claimed-runtime configuration for one ci_cd_run instance:
@@ -258,34 +281,103 @@ func splitTargets(instance desiredInstance, getenv func(string) string) ([]Resol
 	return githubTargets, gitlabTargets, nil
 }
 
-// mapGitHubTarget resolves one github_actions target. The token resolves
-// from the environment at startup into a runtime-only field; the error
-// names the env reference, never the value.
+// mapGitHubTarget resolves one github_actions target. The credential
+// resolves from the environment at startup into runtime-only fields; the
+// error names the env reference, never the value. It ports the in-tree
+// mapTarget auth-mode branching: exactly one credential shape per mode,
+// fail-closed on any mix. Two live behaviors stay host-side by design:
+// the host token file is carried as a path (the in-tree startup
+// resolvability probe and per-claim re-read need the live file), and no
+// installation token is minted here (per-claim mint needs the live App
+// key and provider). Unknown modes fail closed.
 func mapGitHubTarget(target targetJSON, getenv func(string) string) (ResolvedTarget, error) {
+	mode := NormalizeAuthMode(target.AuthMode)
 	tokenEnv := strings.TrimSpace(target.TokenEnv)
-	token := ""
-	if tokenEnv != "" {
-		token = strings.TrimSpace(getenv(tokenEnv))
+	hostTokenFile := strings.TrimSpace(target.HostTokenFile)
+	if mode == AuthModeHostMinted {
+		if hasAppEnvRefs(target) {
+			return ResolvedTarget{}, fmt.Errorf("github_app env references must be empty when auth_mode is %q", mode)
+		}
+		if tokenEnv != "" {
+			return ResolvedTarget{}, fmt.Errorf("auth_mode %q must not set token_env %q: the two credential shapes never mix", mode, tokenEnv)
+		}
+		if hostTokenFile == "" {
+			return ResolvedTarget{}, fmt.Errorf("auth_mode %q requires host_token_file", mode)
+		}
+		return resolvedGitHubTarget(target, mode, "", hostTokenFile, "", "", "")
 	}
-	if token == "" {
-		return ResolvedTarget{}, fmt.Errorf("token_env %s did not resolve a credential", tokenEnv)
+	if hostTokenFile != "" {
+		return ResolvedTarget{}, fmt.Errorf("auth_mode %q must not set host_token_file %q: the two credential shapes never mix", mode, hostTokenFile)
+	}
+	switch mode {
+	case AuthModeTokenEnv:
+		if hasAppEnvRefs(target) {
+			return ResolvedTarget{}, fmt.Errorf("github_app env references must be empty when auth_mode is %q", mode)
+		}
+		token := ""
+		if tokenEnv != "" {
+			token = strings.TrimSpace(getenv(tokenEnv))
+		}
+		if token == "" {
+			return ResolvedTarget{}, fmt.Errorf("token_env %s did not resolve a credential", tokenEnv)
+		}
+		return resolvedGitHubTarget(target, mode, token, "", "", "", "")
+	case AuthModeGitHubApp:
+		if tokenEnv != "" {
+			return ResolvedTarget{}, fmt.Errorf("token_env must be empty when auth_mode is %q", mode)
+		}
+		appID, err := resolveAppCredentialRef(getenv, "github_app_id_env", target.GitHubAppIDEnv)
+		if err != nil {
+			return ResolvedTarget{}, err
+		}
+		installationID, err := resolveAppCredentialRef(getenv, "github_app_installation_id_env", target.GitHubAppInstallationIDEnv)
+		if err != nil {
+			return ResolvedTarget{}, err
+		}
+		privateKey, err := resolveAppCredentialRef(getenv, "github_app_private_key_env", target.GitHubAppPrivateKeyEnv)
+		if err != nil {
+			return ResolvedTarget{}, err
+		}
+		return resolvedGitHubTarget(target, mode, "", "", appID, installationID, privateKey)
+	default:
+		return ResolvedTarget{}, fmt.Errorf("unsupported ci/cd run auth_mode %q", target.AuthMode)
+	}
+}
+
+// resolvedGitHubTarget builds the validated ResolvedTarget for one
+// github_actions target after its credential shape resolved. It runs the
+// fail-closed shape validator over the resolved strings, mirroring the
+// in-tree validateTarget layering.
+func resolvedGitHubTarget(target targetJSON, mode, token, hostFile, appID, installationID, privateKey string) (ResolvedTarget, error) {
+	if err := ValidateGitHubAuth(mode, token, hostFile, appID, installationID, privateKey); err != nil {
+		return ResolvedTarget{}, err
 	}
 	repository := strings.Trim(target.Repository, "/")
 	maxRuns, err := resolveMaxRuns(target.MaxRuns)
 	if err != nil {
 		return ResolvedTarget{}, err
 	}
+	maxDeployments, err := resolveMaxDeployments(target.MaxDeployments)
+	if err != nil {
+		return ResolvedTarget{}, err
+	}
 	return ResolvedTarget{
-		Provider:     ProviderGitHubActions,
-		ScopeID:      strings.TrimSpace(target.ScopeID),
-		Repository:   repository,
-		Token:        token,
-		Allowed:      cleanStrings(target.AllowedRepositories),
-		APIBaseURL:   strings.TrimRight(strings.TrimSpace(target.APIBaseURL), "/"),
-		SourceURI:    strings.TrimSpace(firstNonBlank(target.SourceURI, "https://github.com/"+repository)),
-		MaxRuns:      maxRuns,
-		MaxJobs:      target.MaxJobs,
-		MaxArtifacts: target.MaxArtifacts,
+		Provider:                ProviderGitHubActions,
+		ScopeID:                 strings.TrimSpace(target.ScopeID),
+		Repository:              repository,
+		Token:                   token,
+		AuthMode:                mode,
+		HostTokenFile:           hostFile,
+		GitHubAppID:             appID,
+		GitHubAppInstallationID: installationID,
+		GitHubAppPrivateKey:     privateKey,
+		Allowed:                 cleanStrings(target.AllowedRepositories),
+		APIBaseURL:              strings.TrimRight(strings.TrimSpace(target.APIBaseURL), "/"),
+		SourceURI:               strings.TrimSpace(firstNonBlank(target.SourceURI, "https://github.com/"+repository)),
+		MaxRuns:                 maxRuns,
+		MaxJobs:                 target.MaxJobs,
+		MaxArtifacts:            target.MaxArtifacts,
+		MaxDeployments:          maxDeployments,
 	}, nil
 }
 
@@ -357,6 +449,24 @@ func resolveMaxRuns(raw int) (int, error) {
 	}
 	if raw < 0 || raw > maxRunPages {
 		return 0, fmt.Errorf("max_runs must be between 0 and %d (0 uses the default of %d)", maxRunPages, defaultMaxRuns)
+	}
+	return raw, nil
+}
+
+// resolveMaxDeployments ports the in-tree Deployments API window bound
+// (source_deployments.go boundMaxDeployments): 0 selects the default of
+// 10, values above the hard cap of 100 are rejected. The emission half
+// carries the bound for the host fetch loop; no fetch loop ships here.
+func resolveMaxDeployments(raw int) (int, error) {
+	const (
+		defaultMaxDeployments = 10
+		maxDeploymentPages    = 100
+	)
+	if raw == 0 {
+		return defaultMaxDeployments, nil
+	}
+	if raw < 0 || raw > maxDeploymentPages {
+		return 0, fmt.Errorf("max_deployments must be between 0 and %d (0 uses the default of %d)", maxDeploymentPages, defaultMaxDeployments)
 	}
 	return raw, nil
 }
