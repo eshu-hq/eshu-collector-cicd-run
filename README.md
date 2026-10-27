@@ -31,6 +31,15 @@ checksums match
 ## Layout
 
 ```text
+./                  satellite root (package collector)
+  contract.go        component identity, emitted kinds, SDK contract
+  handle.go          one-claim request handler (host evidence in config)
+  manifest.yaml      component manifest (embedded, seeded by the binary)
+  grant.example.json producer-grant request, one per emitted kind
+  config.example.yaml
+                     activation example (targetJSON operator shape)
+cmd/collector/     satellite binary (claim stdio + seed installer)
+Dockerfile           multi-stage build to distroless static
 producer/            emission-half port (package producer)
   config.go          targetJSON operator shape, claim-capable instance
                      selection, credential-from-env-only, auth_mode shapes,
@@ -97,6 +106,44 @@ helper). Every emitted `complete`/`partial`/`retryable`/`terminal`
 result additionally validates against the pinned SDK
 `collector.Validator`, so the suite proves interop with the exact SDK
 pair, not just self-consistency.
+
+## Satellite binary and image
+
+`cmd/collector` serves one claim over SDK stdio and installs itself:
+
+```bash
+go build ./...
+./collector --sdk-stdio < request.json > result.json
+./collector seed --dest /component --image-ref ghcr.io/eshu-hq/eshu-collector-cicd-run@sha256:<digest>
+```
+
+The claim handler loads the activation from the environment
+(`ESHU_COLLECTOR_INSTANCES_JSON` plus the credential env references its
+targets name), takes the host-supplied normalized provider observation
+from the request config `evidence` key (live provider fetch stays
+host-side; the host fetch loop injects one `producer.Evidence` document
+per claim, the same per-claim injection path it uses for minted tokens),
+and maps the claim through `producer.BuildResult`. Process mode relies
+on host grant admission; claim binding (kind, instance, scope,
+generation, fencing) is still enforced per emission. A missing or
+malformed evidence document terminal-fails the claim; a cancelled claim
+writes no result.
+
+The image is a static binary on distroless (no shell, no package
+manager), mirroring `eshu-collector-jira`:
+
+```bash
+docker build -t ghcr.io/eshu-hq/eshu-collector-cicd-run:v0.1.0 .
+docker run --rm --network none -v /tmp/seed:/component \
+  ghcr.io/eshu-hq/eshu-collector-cicd-run:v0.1.0 seed --dest /component
+```
+
+## Releasing
+
+Push a `v*` tag and the `release` workflow builds, pushes, signs, and
+attests the image; the tag must match `manifest.yaml` metadata.version
+(`v0.1.0` first). Copy the digest from the job summary into the
+activation's `seed.image`. Nothing in the release workflow deploys.
 
 ## Non-goals (core-owned, stay in `eshu-hq/eshu`)
 

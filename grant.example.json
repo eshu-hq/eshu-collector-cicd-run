@@ -1,0 +1,101 @@
+[
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "ci.pipeline_definition",
+    "producer_id": "dev.eshu.collector.cicd-run",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "ci_cd_run",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "ci.run",
+    "producer_id": "dev.eshu.collector.cicd-run",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "ci_cd_run",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "ci.job",
+    "producer_id": "dev.eshu.collector.cicd-run",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "ci_cd_run",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "ci.step",
+    "producer_id": "dev.eshu.collector.cicd-run",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "ci_cd_run",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "ci.artifact",
+    "producer_id": "dev.eshu.collector.cicd-run",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "ci_cd_run",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "ci.trigger_edge",
+    "producer_id": "dev.eshu.collector.cicd-run",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "ci_cd_run",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "ci.environment_observation",
+    "producer_id": "dev.eshu.collector.cicd-run",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "ci_cd_run",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "ci.deployment_event",
+    "producer_id": "dev.eshu.collector.cicd-run",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "ci_cd_run",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "ci.warning",
+    "producer_id": "dev.eshu.collector.cicd-run",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "ci_cd_run",
+    "version": "0.1.0"
+  }
+]

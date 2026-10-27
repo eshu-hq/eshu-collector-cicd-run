@@ -21,13 +21,12 @@ var errMissingFencing = errors.New("claim fencing token is required")
 // emission until grant issuance lands.
 var errGrantDenied = errors.New("grant denied: no live core-issued grant for this producer, kind, and scope")
 
-// Authorizer decides whether an emission may proceed for a claim. This
-// repository ships a library only — there is no production binary here,
-// so no wiring exists yet: process mode relies on host grant admission,
-// and library use must attach an authorizer (DenyAllAuthorizer until
-// core-issued grants land per #6709). A nil authorizer denies every
-// emission. See PRODUCER_GRANT_DRAFT in the in-tree PREP for the intended
-// one-grant-per-kind issuance shape.
+// Authorizer decides whether an emission may proceed for a claim. Process
+// mode (cmd/collector) relies on host grant admission and attaches the
+// root package's host-admitted authorizer; library use must attach an
+// authorizer (DenyAllAuthorizer until core-issued grants land per #6709).
+// A nil authorizer denies every emission. See PRODUCER_GRANT_DRAFT in the
+// in-tree PREP for the intended one-grant-per-kind issuance shape.
 type Authorizer interface {
 	Authorize(claim collector.Claim) error
 }
