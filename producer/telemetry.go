@@ -61,10 +61,18 @@ const (
 )
 
 // Provider status-class vocabulary for MetricProviderRequests,
-// mirroring classifyProviderStatus in the in-tree runtime.
+// mirroring classifyProviderStatus/classifyProviderStatusForMode in the
+// in-tree runtime (#9146 App-auth wiring): direct-App credential/mint
+// errors and provider-read 401/403/404 use auth_error; host-token file
+// or mandatory authentication refusals use auth_denied; static-token
+// errors retain error. See ClassifyProviderStatusCode.
 const (
 	// StatusClassRateLimited marks provider throttling.
 	StatusClassRateLimited = "rate_limited"
 	// StatusClassError marks provider errors.
 	StatusClassError = "error"
+	// StatusClassAuthError marks direct-App auth failures.
+	StatusClassAuthError = "auth_error"
+	// StatusClassAuthDenied marks host-token refusals.
+	StatusClassAuthDenied = "auth_denied"
 )

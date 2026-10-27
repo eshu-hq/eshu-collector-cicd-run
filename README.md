@@ -33,7 +33,10 @@ checksums match
 ```text
 producer/            emission-half port (package producer)
   config.go          targetJSON operator shape, claim-capable instance
-                     selection, credential-from-env-only, heartbeat guard
+                     selection, credential-from-env-only, auth_mode shapes,
+                     deployment-window bound, heartbeat guard
+  auth.go            auth-mode normalization, fail-closed credential-shape
+                     validation, provider status-class mapping (#9146)
   router.go          scope_id -> provider dispatch, claim-ID namespace
   kinds.go           nine-kind emission contract + SDK Contract
   emit.go            BuildResult outcome table + shared emission seam
@@ -51,6 +54,29 @@ testdata/8854-parity-cicd-run.json
                      parity census fixture, byte-identical to the in-tree
                      PREP fixture
 ```
+
+## Authentication modes (`#9146` wiring port)
+
+Each `github_actions` target declares exactly one credential shape via
+`auth_mode` (`token_env` when omitted, `host_minted`, `github_app`).
+Shapes never mix: `token_env` resolves a static Bearer token from its
+env reference; `github_app` resolves the App ID, installation ID, and
+private key from `github_app_*_env` references with `token_env` empty;
+`host_minted` carries `host_token_file` with `token_env` empty. Any mix
+or unknown mode fails closed at config load, naming the env reference
+but never the value.
+
+The satellite carries credential *shapes*: per-claim installation-token
+minting (App) and per-claim host file resolution execute host-side where
+the live provider is reachable, mirroring the in-tree
+`ghactionsruntime` claim lifecycle. `max_deployments` (default 10, cap
+100) carries the Deployments API window for the host fetch loop the
+same way `max_runs` already does.
+
+Provider-request status classes follow the in-tree contract:
+direct-App 401/403/404 reads are `auth_error`, host-denied 401 refusals
+are `auth_denied`, static-token failures keep `error`, throttling keeps
+`rate_limited` (see `ClassifyProviderStatusCode`).
 
 ## Verification
 
