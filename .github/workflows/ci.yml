@@ -350,8 +350,8 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - uses: rhysd/actionlint@a443f344ff32813837fa49f7aa6cbc478d770e62 # v1.7.9
-        with:
-          fail_on_error: true
+        # No `with:` block: this action takes no inputs and fails the step
+        # whenever actionlint reports an error.
 
   ci-complete:
     needs: [changes, lint, test, race, shell, image, boundary, govulncheck, gosec, actionlint]
