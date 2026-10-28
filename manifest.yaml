@@ -4,7 +4,7 @@ metadata:
   id: dev.eshu.collector.cicd-run
   name: CI/CD run collector
   publisher: eshu-hq
-  version: 0.1.0
+  version: 0.1.1
 spec:
   compatibleCore: ">=0.0.5 <0.2.0"
   componentType: collector
@@ -18,7 +18,6 @@ spec:
       image: ghcr.io/eshu-hq/eshu-collector-cicd-run@sha256:0000000000000000000000000000000000000000000000000000000000000000
   emittedFacts:
     - kind: ci.pipeline_definition
-      payloadSchemaRef: ci.pipeline_definition
       schemaVersions:
         - 1.0.0
       sourceConfidence:
@@ -30,7 +29,6 @@ spec:
       sourceConfidence:
         - reported
     - kind: ci.job
-      payloadSchemaRef: ci.job
       schemaVersions:
         - 1.0.0
       sourceConfidence:
@@ -66,7 +64,6 @@ spec:
       sourceConfidence:
         - reported
     - kind: ci.warning
-      payloadSchemaRef: ci.warning
       schemaVersions:
         - 1.0.0
       sourceConfidence:
