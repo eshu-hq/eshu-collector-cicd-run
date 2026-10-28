@@ -35,6 +35,9 @@ on:
   push:
     branches:
       - main
+      # TEMP-PROOF (reverted before green): let this branch produce a
+      # push-event run so push behavior is proven pre-merge.
+      - ci-gates/cicd-run-pushfix
   schedule:
     - cron: "0 6 * * 1" # weekly Monday 06:00 UTC: govulncheck + gosec only
 
@@ -47,7 +50,10 @@ concurrency:
 
 jobs:
   changes:
-    if: github.event_name == 'pull_request'
+    # Runs on every event on purpose: on push the filter outputs are unused
+    # (lane conditions short-circuit on event), but every lane `needs` this
+    # job — skipping it on push drags all lanes to skipped and the push run
+    # goes vacantly green (observed on post-merge main run 40611978095).
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
