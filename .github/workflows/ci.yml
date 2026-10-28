@@ -35,9 +35,6 @@ on:
   push:
     branches:
       - main
-      # TEMP-PROOF (reverted before green): let this branch produce a
-      # push-event run so push behavior is proven pre-merge.
-      - ci-gates/cicd-run-pushfix
   schedule:
     - cron: "0 6 * * 1" # weekly Monday 06:00 UTC: govulncheck + gosec only
 
