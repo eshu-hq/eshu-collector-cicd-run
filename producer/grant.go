@@ -4,8 +4,10 @@
 package producer
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/eshu-hq/eshu-sdk/collector"
 )
@@ -66,4 +68,23 @@ func authorizeClaimBinding(claim collector.Claim, config Config) (ResolvedTarget
 		return ResolvedTarget{}, err
 	}
 	return router.Resolve(claim.Scope.ID)
+}
+
+// ResolveClaimTarget binds one claim to its provider target: the same
+// producer-side claim binding BuildResult enforces, exported so the
+// fetch path resolves its target (and credential) before fetching. An
+// unregistered scope wraps ErrScopeNotRegistered for the
+// target_scope_mismatch class; every other mismatch is a claim_binding.
+func ResolveClaimTarget(claim collector.Claim, config Config) (ResolvedTarget, error) {
+	return authorizeClaimBinding(claim, config)
+}
+
+// MintClaimToken mints one installation token for a direct github_app
+// claim inside the satellite. client overrides the mint transport (nil
+// means a bounded 15-second client) and exists as the fake-server test
+// seam. A mint failure is always a distinct terminal
+// (github_app_mint_failed) or a retryable fault — never a silent empty
+// credential, so a failed mint can never serve zero facts as success.
+func MintClaimToken(ctx context.Context, target ResolvedTarget, client *http.Client) (string, error) {
+	return mintInstallationToken(ctx, target.APIBaseURL, target.GitHubAppID, target.GitHubAppInstallationID, target.GitHubAppPrivateKey, client)
 }

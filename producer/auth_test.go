@@ -94,27 +94,55 @@ func TestMapGitHubTargetRejectsMixedCredentialModes(t *testing.T) {
 		name     string
 		mode     string
 		tokenEnv string
-		hostFile string
 		appIDEnv string
 		want     string
 	}{
-		{"static with app", AuthModeTokenEnv, "TOKEN", "", "APP_ID", "github_app"},
-		{"host with app", AuthModeHostMinted, "", "/token.json", "APP_ID", "github_app"},
-		{"app with host", AuthModeGitHubApp, "", "/token.json", "APP_ID", "host_token_file"},
-		{"app with static", AuthModeGitHubApp, "TOKEN", "", "APP_ID", "token_env"},
-		{"unknown mode", "oauth", "TOKEN", "", "", "auth_mode"},
+		{"static with app", AuthModeTokenEnv, "TOKEN", "APP_ID", "github_app"},
+		{"host with app", AuthModeHostMinted, "", "APP_ID", "github_app"},
+		{"host with static", AuthModeHostMinted, "TOKEN", "", "token_env"},
+		{"app with static", AuthModeGitHubApp, "TOKEN", "APP_ID", "token_env"},
+		{"unknown mode", "oauth", "TOKEN", "", "auth_mode"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			v := base
-			v.AuthMode, v.TokenEnv, v.HostTokenFile, v.GitHubAppIDEnv = tc.mode, tc.tokenEnv, tc.hostFile, tc.appIDEnv
-			v.GitHubAppInstallationIDEnv, v.GitHubAppPrivateKeyEnv = "INSTALL_ID", "KEY"
+			v.AuthMode, v.TokenEnv, v.GitHubAppIDEnv = tc.mode, tc.tokenEnv, tc.appIDEnv
+			if tc.appIDEnv != "" {
+				v.GitHubAppInstallationIDEnv, v.GitHubAppPrivateKeyEnv = "INSTALL_ID", "KEY"
+			}
 			_, err := mapGitHubTarget(v, func(string) string { return "credential-canary" })
 			if err == nil || !strings.Contains(err.Error(), tc.want) || strings.Contains(err.Error(), "credential-canary") {
 				t.Fatalf("map target = %v, want %s without secret", err, tc.want)
 			}
 		})
+	}
+}
+
+// host_token_file was retired with the fetch port (#9337): any configured
+// value fails closed with removal guidance, in every mode, for both
+// providers.
+func TestMapTargetRejectsHostTokenFile(t *testing.T) {
+	t.Parallel()
+	github := targetJSON{ScopeID: "ci:example/repo", Repository: "example/repo", AuthMode: "host_minted", HostTokenFile: "/run/host/token.json"}
+	if _, err := mapGitHubTarget(github, func(string) string { return "" }); err == nil || !strings.Contains(err.Error(), "host_token_file was removed") {
+		t.Fatalf("host_token_file accepted for host_minted: %v", err)
+	}
+	static := targetJSON{ScopeID: "ci:example/repo", Repository: "example/repo", TokenEnv: "TOKEN", HostTokenFile: "/run/host/token.json"}
+	if _, err := mapGitHubTarget(static, func(string) string { return "credential-canary" }); err == nil || !strings.Contains(err.Error(), "host_token_file was removed") {
+		t.Fatalf("host_token_file accepted for token_env: %v", err)
+	}
+	gitlab := targetJSON{Provider: "gitlab_ci", ScopeID: "gitlab-ci://gitlab.com/e/r", Repository: "e/r", TokenEnv: "TOKEN", HostTokenFile: "/run/host/token.json"}
+	if _, err := mapGitLabTarget(gitlab, func(string) string { return "credential-canary" }); err == nil || !strings.Contains(err.Error(), "host_token_file was removed") {
+		t.Fatalf("host_token_file accepted for gitlab_ci: %v", err)
+	}
+}
+
+func TestMapGitLabTargetRejectsNonStaticAuthMode(t *testing.T) {
+	t.Parallel()
+	target := targetJSON{Provider: "gitlab_ci", ScopeID: "gitlab-ci://gitlab.com/e/r", Repository: "e/r", TokenEnv: "TOKEN", AuthMode: "host_minted"}
+	if _, err := mapGitLabTarget(target, func(string) string { return "credential-canary" }); err == nil || !strings.Contains(err.Error(), "auth_mode") {
+		t.Fatalf("host_minted accepted for gitlab_ci: %v", err)
 	}
 }
 
@@ -135,18 +163,46 @@ func TestAuthModeDefaultsToTokenEnv(t *testing.T) {
 	}
 }
 
-func TestMapGitHubTargetResolvesHostMintedPath(t *testing.T) {
+func TestMapGitHubTargetResolvesHostMintedWithoutCredential(t *testing.T) {
 	t.Parallel()
-	host := targetJSON{ScopeID: "ci:example/repo", Repository: "example/repo", AuthMode: "host_minted", HostTokenFile: "/run/host/token.json"}
+	host := targetJSON{ScopeID: "ci:example/repo", Repository: "example/repo", AuthMode: "host_minted"}
 	resolved, err := mapGitHubTarget(host, func(string) string { return "" })
 	if err != nil {
 		t.Fatalf("valid host target rejected: %v", err)
 	}
-	if resolved.AuthMode != AuthModeHostMinted || resolved.HostTokenFile != "/run/host/token.json" || resolved.Token != "" {
-		t.Fatalf("host target = mode %q file %q token %q, want carried path with empty token", resolved.AuthMode, resolved.HostTokenFile, resolved.Token)
+	if resolved.AuthMode != AuthModeHostMinted || resolved.Token != "" {
+		t.Fatalf("host target = mode %q token %q, want host_minted with empty token (per-claim request token)", resolved.AuthMode, resolved.Token)
+	}
+	if resolved.GitHubAppID != "" || resolved.GitHubAppInstallationID != "" || resolved.GitHubAppPrivateKey != "" {
+		t.Fatal("host target carries App credentials, want none")
 	}
 	if resolved.MaxDeployments != 10 {
 		t.Fatalf("host target MaxDeployments = %d, want default 10", resolved.MaxDeployments)
+	}
+}
+
+func TestPageBoundsDefaultAndCap(t *testing.T) {
+	t.Parallel()
+	base := targetJSON{ScopeID: "ci:example/repo", Repository: "example/repo", TokenEnv: "TOKEN"}
+	getenv := func(string) string { return "static-canary" }
+	zeroed, err := mapGitHubTarget(base, getenv)
+	if err != nil {
+		t.Fatalf("valid static target rejected: %v", err)
+	}
+	if zeroed.MaxJobs != 30 || zeroed.MaxArtifacts != 30 {
+		t.Fatalf("page bounds = jobs %d artifacts %d, want provider defaults 30", zeroed.MaxJobs, zeroed.MaxArtifacts)
+	}
+	for _, raw := range []int{-1, 501} {
+		v := base
+		v.MaxJobs = raw
+		if _, err := mapGitHubTarget(v, getenv); err == nil {
+			t.Errorf("max_jobs %d accepted, want hard-cap rejection", raw)
+		}
+		v = base
+		v.MaxArtifacts = raw
+		if _, err := mapGitHubTarget(v, getenv); err == nil {
+			t.Errorf("max_artifacts %d accepted, want hard-cap rejection", raw)
+		}
 	}
 }
 
@@ -175,6 +231,39 @@ func TestMaxDeploymentsBound(t *testing.T) {
 	}
 	if _, err := mapGitHubTarget(resolve(-1), getenv); err == nil {
 		t.Error("max_deployments -1 = nil, want rejection")
+	}
+}
+
+func TestValidateGitHubAuthMatrix(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name                          string
+		mode, token, appID, installID string
+		privateKey                    string
+		wantErr                       bool
+	}{
+		{"static ok", AuthModeTokenEnv, "token", "", "", "", false},
+		{"static blank mode ok", "", "token", "", "", "", false},
+		{"static missing token", AuthModeTokenEnv, "", "", "", "", true},
+		{"static with app", AuthModeTokenEnv, "token", "1", "2", "key", true},
+		{"host ok", AuthModeHostMinted, "", "", "", "", false},
+		{"host with token", AuthModeHostMinted, "token", "", "", "", true},
+		{"host with app", AuthModeHostMinted, "", "1", "2", "key", true},
+		{"app ok", AuthModeGitHubApp, "", "1", "2", "key", false},
+		{"app with token", AuthModeGitHubApp, "token", "1", "2", "key", true},
+		{"app missing key", AuthModeGitHubApp, "", "1", "2", "", true},
+		{"app missing id", AuthModeGitHubApp, "", "", "2", "key", true},
+		{"unknown mode", "oauth", "token", "", "", "", true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateGitHubAuth(test.mode, test.token, test.appID, test.installID, test.privateKey)
+			if (err != nil) != test.wantErr {
+				t.Errorf("ValidateGitHubAuth() error = %v, wantErr %v", err, test.wantErr)
+			}
+		})
 	}
 }
 

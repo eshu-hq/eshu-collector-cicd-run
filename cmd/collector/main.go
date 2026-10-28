@@ -23,9 +23,10 @@ import (
 
 const (
 	// maxRequestBytes caps the stdin request document. The host sends one
-	// claim plus the activation config and the host-supplied normalized
-	// evidence for the claim, which can span a full runs window: keep
-	// this in step with the host's process.stdout_limit_bytes.
+	// claim plus the per-claim request config (the host-minted token
+	// object for host_minted targets); the provider observation itself is
+	// fetched in-satellite and never crosses stdin. Keep this in step
+	// with the host's process.stdout_limit_bytes.
 	maxRequestBytes = 64 << 20
 	// maxResultBytes caps the encoded result including its newline. A
 	// windowed run observation can fill it: keep this in step with the

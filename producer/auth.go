@@ -31,15 +31,12 @@ func NormalizeAuthMode(mode string) string {
 // ValidateGitHubAuth enforces the fail-closed credential-shape contract
 // for one resolved github_actions target: exactly one credential shape
 // per auth mode, never mixed. It ports validateTargetAuth from the
-// in-tree runtime; only the live resolution (installation-token mint,
-// host file read) executes host-side, so this validator runs on the
-// resolved strings the config loader already carried.
-func ValidateGitHubAuth(mode, token, hostFile, appID, installationID, privateKey string) error {
+// in-tree runtime, minus the retired host_token_file: host_minted
+// credentials arrive per claim on the request config (ResolveHostToken),
+// so no file path is carried here in any mode.
+func ValidateGitHubAuth(mode, token, appID, installationID, privateKey string) error {
 	switch NormalizeAuthMode(mode) {
 	case AuthModeTokenEnv:
-		if hostFile != "" {
-			return fmt.Errorf("host_token_file must be empty when auth_mode is %q", AuthModeTokenEnv)
-		}
 		if token == "" {
 			return fmt.Errorf("token is required")
 		}
@@ -47,9 +44,6 @@ func ValidateGitHubAuth(mode, token, hostFile, appID, installationID, privateKey
 			return fmt.Errorf("github_app credentials must be empty when auth_mode is %q", AuthModeTokenEnv)
 		}
 	case AuthModeHostMinted:
-		if hostFile == "" {
-			return fmt.Errorf("host_token_file is required")
-		}
 		if token != "" {
 			return fmt.Errorf("token must be empty when auth_mode is %q", AuthModeHostMinted)
 		}
@@ -57,9 +51,6 @@ func ValidateGitHubAuth(mode, token, hostFile, appID, installationID, privateKey
 			return fmt.Errorf("github_app credentials must be empty when auth_mode is %q", AuthModeHostMinted)
 		}
 	case AuthModeGitHubApp:
-		if hostFile != "" {
-			return fmt.Errorf("host_token_file must be empty when auth_mode is %q", AuthModeGitHubApp)
-		}
 		if token != "" {
 			return fmt.Errorf("token must be empty when auth_mode is %q", AuthModeGitHubApp)
 		}

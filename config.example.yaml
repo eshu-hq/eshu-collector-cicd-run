@@ -40,7 +40,10 @@ config:
   # provider is github_actions (the default when omitted) or gitlab_ci.
   # Secrets travel by env reference, never inline. auth_mode selects the
   # credential shape: token_env (the default when omitted), host_minted, or
-  # github_app; shapes never mix.
+  # github_app (github_actions only; gitlab_ci serves token_env only);
+  # shapes never mix. host_minted resolves nothing here: the host injects
+  # one installation token per claim on the request config. host_token_file
+  # was removed (#9337): any configured value fails closed at load.
   targets:
     - provider: github_actions
       scope_id: ci-cd:github-actions:example-org/example-repo
@@ -53,3 +56,30 @@ config:
       max_jobs: 25
       max_artifacts: 25
       max_deployments: 10
+    # host_minted alternative for the same target (replaces token_env):
+    #   - provider: github_actions
+    #     scope_id: ci-cd:github-actions:example-org/example-repo
+    #     repository: example-org/example-repo
+    #     auth_mode: host_minted
+    #     allowed_repositories:
+    #       - example-org/example-repo
+    #     api_base_url: https://api.github.com
+    #     max_runs: 10
+    #     max_jobs: 25
+    #     max_artifacts: 25
+    #     max_deployments: 10
+    # direct github_app alternative (replaces token_env):
+    #   - provider: github_actions
+    #     scope_id: ci-cd:github-actions:example-org/example-repo
+    #     repository: example-org/example-repo
+    #     auth_mode: github_app
+    #     github_app_id_env: GITHUB_APP_ID
+    #     github_app_installation_id_env: GITHUB_APP_INSTALLATION_ID
+    #     github_app_private_key_env: GITHUB_APP_PRIVATE_KEY
+    #     allowed_repositories:
+    #       - example-org/example-repo
+    #     api_base_url: https://api.github.com
+    #     max_runs: 10
+    #     max_jobs: 25
+    #     max_artifacts: 25
+    #     max_deployments: 10

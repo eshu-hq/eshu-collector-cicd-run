@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package producer is the extracted ci_cd_run emission half for
-// eshu-hq/eshu-collector-cicd-run (#8854, epic #6707).
+// Package producer is the extracted ci_cd_run fetch-plus-emission half for
+// eshu-hq/eshu-collector-cicd-run (#8854, epic #6707; fetch moved in per
+// the #9337 arbiter ruling).
 //
 // It ports the in-tree collector-cicd-run command surface per SHIM_MAP
 // (go/cmd/collector-cicd-run/SHIM_MAP.md in eshu-hq/eshu): the targetJSON
 // operator shape, provider-scope routing, the ci-cd-run-claim- namespace,
 // the nine emitted ci.* kinds at schema 1.0.0, deterministic stable keys,
-// URL/text sanitizers, and the claim-outcome table (complete /
-// partial+warning / unchanged / retryable / terminal / cancelled).
+// URL/text sanitizers, the bounded provider fetch (GitHub Actions plus
+// GitLab CI windows, caps, and outcome signals), and the claim-outcome
+// table (complete / partial+warning / unchanged / retryable / terminal /
+// cancelled).
 // Facts use the exact published SDK pair:
 //
 //	require github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.3
