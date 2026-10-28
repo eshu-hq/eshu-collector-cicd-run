@@ -133,16 +133,16 @@ The image is a static binary on distroless (no shell, no package
 manager), mirroring `eshu-collector-jira`:
 
 ```bash
-docker build -t ghcr.io/eshu-hq/eshu-collector-cicd-run:v0.1.0 .
+docker build -t ghcr.io/eshu-hq/eshu-collector-cicd-run:v0.1.1 .
 docker run --rm --network none -v /tmp/seed:/component \
-  ghcr.io/eshu-hq/eshu-collector-cicd-run:v0.1.0 seed --dest /component
+  ghcr.io/eshu-hq/eshu-collector-cicd-run:v0.1.1 seed --dest /component
 ```
 
 ## Releasing
 
 Push a `v*` tag and the `release` workflow builds, pushes, signs, and
 attests the image; the tag must match `manifest.yaml` metadata.version
-(`v0.1.0` first). Copy the digest from the job summary into the
+(`v0.1.1`; `v0.1.0` shipped the pre-#9329 manifest). Copy the digest from the job summary into the
 activation's `seed.image`. Nothing in the release workflow deploys.
 
 ## Non-goals (core-owned, stay in `eshu-hq/eshu`)

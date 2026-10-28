@@ -8,7 +8,7 @@
       "1.0.0"
     ],
     "scope": "ci_cd_run",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "expires_at": "2027-10-01T00:00:00Z",
@@ -19,7 +19,7 @@
       "1.0.0"
     ],
     "scope": "ci_cd_run",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "expires_at": "2027-10-01T00:00:00Z",
@@ -30,7 +30,7 @@
       "1.0.0"
     ],
     "scope": "ci_cd_run",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "expires_at": "2027-10-01T00:00:00Z",
@@ -41,7 +41,7 @@
       "1.0.0"
     ],
     "scope": "ci_cd_run",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "expires_at": "2027-10-01T00:00:00Z",
@@ -52,7 +52,7 @@
       "1.0.0"
     ],
     "scope": "ci_cd_run",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "expires_at": "2027-10-01T00:00:00Z",
@@ -63,7 +63,7 @@
       "1.0.0"
     ],
     "scope": "ci_cd_run",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "expires_at": "2027-10-01T00:00:00Z",
@@ -74,7 +74,7 @@
       "1.0.0"
     ],
     "scope": "ci_cd_run",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "expires_at": "2027-10-01T00:00:00Z",
@@ -85,7 +85,7 @@
       "1.0.0"
     ],
     "scope": "ci_cd_run",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   {
     "expires_at": "2027-10-01T00:00:00Z",
@@ -96,6 +96,6 @@
       "1.0.0"
     ],
     "scope": "ci_cd_run",
-    "version": "0.1.0"
+    "version": "0.1.1"
   }
 ]
