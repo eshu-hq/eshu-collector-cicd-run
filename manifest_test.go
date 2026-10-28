@@ -99,10 +99,25 @@ func TestManifestMatchesProducerContract(t *testing.T) {
 	if len(manifest.Spec.Artifacts) == 0 {
 		t.Error("manifest declares no artifacts")
 	}
+	// schemalessKinds are registry-declared ci kinds with no shipped
+	// fixture-pack schema (eshu-hq/eshu#9329). They must declare no
+	// payloadSchemaRef: the field is omitempty by design and empty means
+	// "registry kind with no payload schema" in every consumer. Every
+	// other emitted kind must reference its own fixture-pack schema key.
+	schemalessKinds := map[string]bool{
+		"ci.pipeline_definition": true,
+		"ci.job":                 true,
+		"ci.warning":             true,
+	}
 	var kinds []string
 	for _, family := range manifest.Spec.EmittedFacts {
 		kinds = append(kinds, family.Kind)
-		if family.PayloadSchemaRef != family.Kind {
+		if schemalessKinds[family.Kind] {
+			if family.PayloadSchemaRef != "" {
+				t.Errorf("kind %s payloadSchemaRef = %q, want empty (no fixture-pack schema ships for this kind)",
+					family.Kind, family.PayloadSchemaRef)
+			}
+		} else if family.PayloadSchemaRef != family.Kind {
 			t.Errorf("kind %s payloadSchemaRef = %q, want the kind (fixturepack schema key)",
 				family.Kind, family.PayloadSchemaRef)
 		}
