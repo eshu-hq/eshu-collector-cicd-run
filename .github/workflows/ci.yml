@@ -323,11 +323,17 @@ jobs:
         with:
           sarif_file: gosec.sarif
         continue-on-error: true
-      - name: finding count (advisory; summary-only on schedule)
+      - name: finding count (advisory on PR; red on scheduled findings)
         run: |
           n=$(jq '[.runs[].results[]] | length' gosec.sarif)
           echo "## gosec findings: $n" >> "$GITHUB_STEP_SUMMARY"
           echo "gosec findings: $n"
+          # Findings fail scheduled runs so the `failure()`-gated issue
+          # step below is reachable; PR runs stay advisory green.
+          if [ "${n:-0}" -gt 0 ] && [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "gosec findings on a scheduled run; failing to file the issue."
+            exit 1
+          fi
       - name: file or update findings issue (scheduled runs)
         if: failure() && github.event_name == 'schedule'
         env:
