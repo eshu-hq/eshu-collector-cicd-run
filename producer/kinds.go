@@ -16,9 +16,11 @@ const CollectorKind = "ci_cd_run"
 // issued, not stored, not enforced.
 const ProducerID = "dev.eshu.collector.cicd-run"
 
-// ProducerVersion is the collector artifact version at cutover. It is NOT
-// a published SDK pin; the SDK pins live in go.mod.
-const ProducerVersion = "0.1.0"
+// ProducerVersion is the collector artifact version. It is NOT
+// a published SDK pin; the SDK pins live in go.mod. 0.1.1 carries the
+// #9329 manifest fix (dropped payloadSchemaRef on the three schemaless
+// ci kinds); no emitted kind, schema, or scope changed.
+const ProducerVersion = "0.1.1"
 
 // SchemaVersion is the first CI/CD run fact schema. Every emitted kind is
 // versioned at 1.0.0, matching facts.CICDSchemaVersion in the core.
