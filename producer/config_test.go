@@ -193,6 +193,20 @@ func TestFirstNonBlankAllBlank(t *testing.T) {
 	}
 }
 
+func TestFirstNonBlankSelectsFirstValue(t *testing.T) {
+	t.Parallel()
+
+	if got := firstNonBlank("  ", "a", "b"); got != "a" {
+		t.Errorf("firstNonBlank(blanks, a, b) = %q, want a", got)
+	}
+	if got := firstNonBlank("a", "b"); got != "a" {
+		t.Errorf("firstNonBlank(a, b) = %q, want a", got)
+	}
+	if got := firstNonBlank("  padded  "); got != "padded" {
+		t.Errorf("firstNonBlank(padded) = %q, want padded", got)
+	}
+}
+
 func TestSplitTargetsRejectsBadConfiguration(t *testing.T) {
 	t.Parallel()
 
