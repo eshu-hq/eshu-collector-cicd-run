@@ -21,8 +21,8 @@ make ci   # lint + test + race, the whole local contract
 `make lint` runs `go vet`, whole-repo `golangci-lint run` (config in
 `.golangci.yml`, org lint set; no baselines), the gofumpt format check,
 `go mod tidy -diff`, and the 500-line cap on `.go` files. `make race`
-also enforces the statement-coverage floor (`COVERAGE_FLOOR`, starts at
-82.9%, ratchets toward 90% and may only rise).
+also enforces the statement-coverage floor (`COVERAGE_FLOOR`, now at
+92.9% after the ci-gates ratchet, and may only rise).
 
 ## CI lanes
 

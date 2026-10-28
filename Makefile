@@ -3,7 +3,7 @@
 # Needs: go (version in go.mod), golangci-lint v2.12.2 (same binary Eshu
 # uses), git (for the 500-line cap file list).
 
-COVERAGE_FLOOR ?= 82.9
+COVERAGE_FLOOR ?= 92.9
 
 .PHONY: ci lint test race
 
