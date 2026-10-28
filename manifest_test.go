@@ -117,9 +117,7 @@ func TestManifestMatchesProducerContract(t *testing.T) {
 				t.Errorf("kind %s payloadSchemaRef = %q, want empty (no fixture-pack schema ships for this kind)",
 					family.Kind, family.PayloadSchemaRef)
 			}
-			continue
-		}
-		if family.PayloadSchemaRef != family.Kind {
+		} else if family.PayloadSchemaRef != family.Kind {
 			t.Errorf("kind %s payloadSchemaRef = %q, want the kind (fixturepack schema key)",
 				family.Kind, family.PayloadSchemaRef)
 		}
