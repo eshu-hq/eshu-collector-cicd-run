@@ -6,10 +6,16 @@ package producer
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"sync/atomic"
 	"time"
 )
+
+// ErrScopeNotRegistered marks a claim scope with no registered provider
+// target. Callers map it to invalid_config.target_scope_mismatch; the
+// message names the scope, never credentials.
+var ErrScopeNotRegistered = errors.New("scope has no registered provider source")
 
 // claimIDPrefix namespaces every claim this producer mints. The prefix is
 // part of the parity fixture: the #4047 gate reproduces it exactly.
@@ -58,12 +64,13 @@ func NewRouter(config Config) (Router, error) {
 }
 
 // Resolve returns the target registered for a claim scope_id, or a
-// fail-closed error when no provider source owns that scope.
+// fail-closed error wrapping ErrScopeNotRegistered when no provider
+// source owns that scope.
 func (r Router) Resolve(scopeID string) (ResolvedTarget, error) {
 	target, ok := r.byScopeID[scopeID]
 	if !ok {
 		return ResolvedTarget{}, fmt.Errorf(
-			"ci/cd run scope %q has no registered provider source", scopeID,
+			"ci/cd run scope %q has no registered provider source: %w", scopeID, ErrScopeNotRegistered,
 		)
 	}
 	return target, nil
