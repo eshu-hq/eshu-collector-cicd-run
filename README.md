@@ -165,10 +165,13 @@ docker run --rm --network none -v /tmp/seed:/component \
 
 ## Releasing
 
-Push a `v*` tag and the `release` workflow builds, pushes, signs, and
-attests the image; the tag must match `manifest.yaml` metadata.version
-(`v0.1.2`; `v0.1.1` predates the fork-ii fetch port, `v0.1.0` shipped the pre-#9329 manifest). Copy the digest from the job summary into the
-activation's `seed.image`. Nothing in the release workflow deploys.
+Push a `v*` tag on the protected `main` head and the `release` workflow
+builds, pushes, signs, and attests the image; the tag must match
+`manifest.yaml` metadata.version (`v0.1.2`; `v0.1.1` predates the fork-ii
+fetch port, `v0.1.0` shipped the pre-#9329 manifest). A tag on any other
+commit fails before anything is built or pushed. Copy the digest from the job
+summary into the activation's `seed.image`. Nothing in the release workflow
+deploys.
 
 ## Terminal failure classes
 
