@@ -1,228 +1,172 @@
 # eshu-collector-cicd-run
 
-Extracted `ci_cd_run` producer for Eshu (#8854, epic #6707).
+Status: pre-release. Do not rely on it in production yet.
 
-Ports the in-tree `collector-cicd-run` fetch-plus-emission halves per
-[`SHIM_MAP.md`](https://github.com/eshu-hq/eshu/blob/main/go/cmd/collector-cicd-run/SHIM_MAP.md):
-the `targetJSON` operator shape, provider-scope routing, the
-`ci-cd-run-claim-` namespace, the nine emitted `ci.*` kinds at schema
-`1.0.0`, deterministic generation-agnostic stable keys, URL/text
-sanitizers, the bounded provider fetch (GitHub Actions plus GitLab CI
-windows, caps, and outcome signals), and the claim-outcome table
-(complete / partial+warning / unchanged / retryable / terminal /
-cancelled-no-result).
+This collector reads recent CI/CD runs (automated build and deploy jobs) from GitHub Actions or GitLab CI and hands Eshu a checked summary of what ran.
 
-Fetch moved into the satellite per the arbiter ruling on
-[eshu-hq/eshu#9337](https://github.com/eshu-hq/eshu/issues/9337): each
-claim fetches its own bounded provider window under the claim deadline
-and normalizes into the `producer.Evidence` seam, whose builders are
-unchanged. No host fetch loop feeds this collector.
+Eshu is the core system. A collector is a small helper program: it reads one outside system, turns what it finds into facts (small, typed records), and gives those facts back to Eshu. CI/CD is the automated pipeline that builds, tests, and deploys code; a run is one execution of that pipeline, made of jobs and steps. This collector only reads run history. It never starts, cancels, or changes a run.
 
-> Pre-release: producer extraction in progress. The in-tree collector
-> remains the producer of record until cutover is proven (#4047 gate).
+A claim is one unit of work Eshu sends the collector. An activation is one configured copy of this collector, set up with one or more provider targets.
 
-## Pins
+## What it collects
 
-Exact published SDK pair, no `replace` directives, no workspace:
+One run covers one repository target, named by the claim. For that target the collector itself fetches a bounded recent window from the provider — no host fetch loop feeds it:
 
-```text
-github.com/eshu-hq/eshu-sdk/collector v0.1.0-rc.3
-github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.5
+- GitHub Actions: recent workflow runs with their jobs, steps, and artifacts, plus deployments and their statuses.
+- GitLab CI: recent pipelines with their jobs and artifacts.
+
+It returns 9 fact kinds, all at schema `1.0.0` with confidence `reported` (the provider said so; Eshu did not check it directly):
+
+| Fact kind | One fact describes |
+| --- | --- |
+| `ci.pipeline_definition` | one pipeline or workflow definition |
+| `ci.run` | one pipeline run |
+| `ci.job` | one job inside a run |
+| `ci.step` | one step inside a job |
+| `ci.artifact` | one file a run produced |
+| `ci.trigger_edge` | one "this event started that run" link |
+| `ci.environment_observation` | one observed deployment environment |
+| `ci.deployment_event` | one deployment and its outcome |
+| `ci.warning` | one non-fatal problem, such as a window cut short by a limit |
+
+GitHub targets can produce all nine kinds; GitLab targets produce the run, job, artifact, and warning kinds. Web addresses and free text are cleaned before anything leaves the collector, and credential-bearing addresses are dropped outright.
+
+A run ends as `complete`, `partial` with a warning (a limit or a mid-window throttle cut the window short, but what was fetched is committed), `unchanged`, `retryable` (try again later), or `terminal` (stop; a person must fix something first). A cancelled claim returns no result at all. A failed run returns no facts.
+
+## How data flows
+
+```mermaid
+flowchart LR
+  A["GitHub Actions or GitLab CI"] --> B["This collector"] --> C["Eshu host process"] --> D["Eshu core"]
 ```
 
-Resolution verified through the public Go proxy
-(`GOPROXY=proxy.golang.org go list -m <module>@<version>`); module-zip
-checksums match
-[`sdk-compatibility.md`](https://github.com/eshu-hq/eshu/blob/main/docs/public/extend/sdk-compatibility.md).
+Text version: GitHub Actions or GitLab CI → this collector → Eshu host process (checks and stores the result) → Eshu core. The collector never talks to Eshu's database directly.
 
-## Layout
+## When to use it, and when not to
 
-```text
-./                  satellite root (package collector)
-  contract.go        component identity, emitted kinds, SDK contract
-  handle.go          one-claim request handler (bind, credential, fetch,
-                     compose with invalid_config.<reason> terminals)
-  manifest.yaml      component manifest (embedded, seeded by the binary)
-  grant.example.json producer-grant request, one per emitted kind
-  config.example.yaml
-                     activation example (targetJSON operator shape)
-cmd/collector/     satellite binary (claim stdio + seed installer)
-Dockerfile           multi-stage build to distroless static
-producer/            fetch-plus-emission port (package producer)
-  config.go          targetJSON operator shape, claim-capable instance
-                     selection, credential-from-env-only, auth_mode shapes,
-                     fetch-window bounds, heartbeat guard
-  auth.go            auth-mode normalization, fail-closed credential-shape
-                     validation, provider status-class mapping (#9146)
-  fetch.go           claim credential seam (host token object), terminal /
-                     retryable outcome errors, shared HTTP plumbing
-  fetch_github.go    github_actions window fetch (runs/jobs/artifacts/
-                     deployments windows, truncation + throttle signals)
-  fetch_gitlab.go    gitlab_ci window fetch (pipelines/detail/jobs,
-                     X-Total signals)
-  normalize_github.go
-                     raw GitHub maps into the Evidence seam
-  appauth.go         in-satellite direct-App installation-token mint
-                     (stdlib RS256 JWT, no key material in errors)
-  window.go          Window composition into the claim-outcome table
-  router.go          scope_id -> provider dispatch, claim-ID namespace
-  kinds.go           nine-kind emission contract + SDK Contract
-  emit.go            BuildResult outcome table + shared emission seam
-  evidence.go        normalized provider-observation seam (fetch output)
-  github.go          github_actions fact builders (8 of 9 kinds + pipeline)
-  gitlab.go          gitlab_ci fact builders (run/job/artifact/warning)
-  warnings.go        ci.warning builders + transport-level synthesis
-  parity_golden_test.go
-                     in-tree golden stable keys + payload spot vectors
-  redact.go          URL/text sanitizers (stdlib-only)
-  grant.go           fail-closed grant stub (DenyAllAuthorizer),
-                     claim-target binding, App mint entrypoint
-  urls.go            provider locator helpers
-  telemetry.go       verbatim signal names (emission stays host-side)
-testdata/8854-parity-cicd-run.json
-                     parity census fixture, byte-identical to the in-tree
-                     PREP fixture
-```
+Use it when Eshu needs current build and deploy activity for repositories you name, read on a schedule Eshu controls. Do not use it to trigger or manage pipelines, to read run logs (it reads run structure and outcomes, not log text), or as a general GitHub or GitLab API tool. It also never emits workflow-file image evidence (`ci.workflow_image_evidence`); that kind belongs to another collector.
 
-## Authentication modes (`#9146` wiring port, fetch in `#9337`)
+## How Eshu runs it
 
-Each `github_actions` target declares exactly one credential shape via
-`auth_mode` (`token_env` when omitted, `host_minted`, `github_app`).
-Shapes never mix: `token_env` resolves a static Bearer token from its
-env reference; `github_app` resolves the App ID, installation ID, and
-private key from `github_app_*_env` references with `token_env` empty;
-`host_minted` resolves nothing at load — the host injects one
-installation token per claim on the request config as
-`host_github_app_token: {token, scope_id}`, spent as the Bearer. Any
-mix or unknown mode fails closed at config load, naming the env
-reference but never the value. `host_token_file` was removed: any
-configured value fails closed with removal guidance, in every mode.
-`gitlab_ci` targets serve `token_env` only.
-
-The satellite spends every credential shape itself: static tokens read
-at load, host tokens spent per claim from the request config, direct
-App triples minted in-satellite per claim with a stdlib RS256 JWT (no
-JWT dependency, no key material in errors). Fetch bounds carry over
-from the in-tree runtime: `max_runs` (default 10, cap 100),
-`max_jobs`/`max_artifacts` (provider-page default 30, cap 500),
-`max_deployments` (default 10, cap 100), per-deployment statuses (20).
-The claim deadline bounds the whole fetch.
-
-Provider-request status classes follow the in-tree contract:
-direct-App 401/403/404 reads are `auth_error`, host-denied 401 refusals
-are `auth_denied`, static-token failures keep `error`, throttling keeps
-`rate_limited` (see `ClassifyProviderStatusCode`).
-
-## Verification
+Eshu's component host starts this program for one claim at a time: it sends one bounded `collector-sdk/v1alpha1` request on standard input (stdin) and reads one result from standard output (stdout). Requests and results are each capped at 64 MiB; keep those in step with the host's `process.stdout_limit_bytes` and `config.limits.maxResultBytes` (see `config.example.yaml`).
 
 ```bash
-GOPROXY=proxy.golang.org GOWORK=off go test -count=1 ./...
-GOPROXY=proxy.golang.org GOWORK=off go vet ./...
+collector --sdk-stdio   # serve one claim from stdin
 ```
 
-The parity suite drives the ported producer from the checked-in fixture
-and asserts kinds, stable-key determinism and generation-agnosticism,
-claim/generation fencing, and every failure signal — including hostile
-inputs failing closed. `parity_golden_test.go` pins every emitted
-stable key byte-identical to the in-tree producer (cut from
-`go/internal/collector/cicdrun` on the 8854 PREP branch), with
-`ci.pipeline_definition` as the single documented expected-diverge
-(uncomputable canonical `repository_id` until the SDK exports the
-helper). Every emitted `complete`/`partial`/`retryable`/`terminal`
-result additionally validates against the pinned SDK
-`collector.Validator`, so the suite proves interop with the exact SDK
-pair, not just self-consistency.
+Unlike most collectors, this one reads its activation from the process environment, not from the request: `ESHU_COLLECTOR_INSTANCES_JSON` holds the instance list (the operator shape shared with the built-in collector), and the handler selects the one enabled, claim-capable `ci_cd_run` instance and resolves the credential references its targets name. Only the per-claim host token (for `host_minted` targets) arrives on the request config. The claim is bound to its provider target and checked — kind, instance, scope, generation, and fencing — before anything is fetched or emitted. The host owns admission, grants, claim identity, fact validation, and process supervision; the collector gets no database, graph, queue, or workflow handle.
 
-## Satellite binary and image
-
-`cmd/collector` serves one claim over SDK stdio and installs itself:
+The published image is `ghcr.io/eshu-hq/eshu-collector-cicd-run`. It holds one static binary with no shell, and the binary can install itself into a component folder (how a startup, or init, container sets it up):
 
 ```bash
-go build ./...
-./collector --sdk-stdio < request.json > result.json
-./collector seed --dest /component --image-ref ghcr.io/eshu-hq/eshu-collector-cicd-run@sha256:<digest>
+collector seed --dest /component [--image-ref ghcr.io/eshu-hq/eshu-collector-cicd-run@sha256:<digest>]
 ```
 
-The claim handler loads the activation from the environment
-(`ESHU_COLLECTOR_INSTANCES_JSON` plus the credential env references its
-targets name), binds the claim to its provider target, resolves the
-claim credential, fetches the bounded provider window under the claim
-deadline, and composes the result through `producer.BuildWindowResult`.
-Process mode relies on host grant admission; claim binding (kind,
-instance, scope, generation, fencing) is still enforced per emission.
-A claim the satellite cannot serve terminal-fails with an
-`invalid_config.<reason>` class (see the table below); a transient
-fault releases the claim retryable.
+This writes `/component/collector` (mode 0755) and `/component/manifest.yaml`. `--image-ref` (or the `COLLECTOR_IMAGE_REF` environment variable; the flag wins) stamps the exact deployed image reference into the manifest, because an image cannot contain its own digest. The manifest in this repository keeps an all-zero placeholder digest on purpose.
 
-The image is a static binary on distroless (no shell, no package
-manager), mirroring `eshu-collector-jira`:
+## Configuration
 
-```bash
-docker build -t ghcr.io/eshu-hq/eshu-collector-cicd-run:v0.1.2 .
-docker run --rm --network none -v /tmp/seed:/component \
-  ghcr.io/eshu-hq/eshu-collector-cicd-run:v0.1.2 seed --dest /component
-```
+Copy `config.example.yaml`. It has three parts: `host` names the job identity Eshu plans, `process` says how Eshu starts the binary, and `config.targets` holds this collector's provider targets. One activation covers the targets of one `ci_cd_run` instance; each target keeps its own scope ID.
 
-## Releasing
+| Target key | Meaning |
+| --- | --- |
+| `provider` | `github_actions` (default when omitted) or `gitlab_ci` |
+| `scope_id` | The claim scope this target serves; part of every stored fact key, so choose it once and keep it |
+| `repository` | The `owner/repo` (GitHub) or project path (GitLab) to read |
+| `auth_mode` | `token_env` (default), `host_minted`, or `github_app`. See Credentials |
+| `token_env` | For `token_env` targets: name of the environment variable holding the token |
+| `github_app_id_env`, `github_app_installation_id_env`, `github_app_private_key_env` | For `github_app` targets only: names of the variables holding the App ID, installation ID, and private key |
+| `allowed_repositories` | The only repositories this target may read |
+| `api_base_url` | Provider API address, for example `https://api.github.com` |
+| `max_runs`, `max_jobs`, `max_artifacts`, `max_deployments` | Window sizes. Defaults: 10 runs, 30 jobs, 30 artifacts, 10 deployments; hard caps: 100, 500, 500, 100. `0` means "use the default". (`max_artifacts` is ignored for GitLab) |
+| `source_uri` | Optional provenance address recorded on facts |
 
-Push a `v*` tag on the protected `main` head and the `release` workflow
-builds, pushes, signs, and attests the image; the tag must match
-`manifest.yaml` metadata.version (`v0.1.2`; `v0.1.1` predates the fork-ii
-fetch port, `v0.1.0` shipped the pre-#9329 manifest). A tag on any other
-commit fails before anything is built or pushed. Copy the digest from the job
-summary into the activation's `seed.image`. Nothing in the release workflow
-deploys.
+`host_token_file` was removed: setting it in any mode fails at load, with guidance to use `host_minted` instead. Credential shapes never mix on one target; mixed or unknown shapes fail at load, naming the env reference but never its value.
 
-## Terminal failure classes
+## Credentials
 
-A claim the satellite cannot serve terminal-fails with
-`invalid_config.<reason>` — the bare bucket is never emitted. Reasons
-are bounded vocabulary an operator can act on; classes, errors, and log
-lines never carry tokens, credentials, or provider payload text.
+Secrets never go in the config file. Each `github_actions` target picks exactly one shape with `auth_mode`; `gitlab_ci` targets serve `token_env` only:
 
-| Class | Meaning |
-|---|---|
-| `invalid_config.activation` | Unloadable activation or unknown provider/mode |
-| `invalid_config.claim_binding` | Claim kind/instance/generation/fencing mismatch |
+- `token_env` (default): a static token. `token_env` names an environment variable the worker process already has — for example, `token_env: GITHUB_TOKEN` means "read the token from the variable called `GITHUB_TOKEN`." It is sent as `Authorization: Bearer`.
+- `host_minted`: nothing is resolved at load. The host injects one GitHub App installation token per claim on the request config as `host_github_app_token: {token, scope_id}`; the collector spends it as the Bearer [REDACTED] that claim. A missing, blank, mis-shaped, or wrong-scope token object fails the claim with a matching `invalid_config` reason (see the table below).
+- `github_app`: direct GitHub App auth. The three `github_app_*_env` entries name variables holding the App ID, installation ID, and private key, and `token_env` must be empty. The collector mints a fresh installation token itself for each claim; a failed mint is a distinct terminal failure, never an empty credential.
+
+Token and key values never appear in facts, logs, status messages, or errors.
+
+## Time and size limits
+
+The claim deadline bounds the whole fetch: the window is read under it, and an overrun is released as retryable rather than stored as truth. Window sizes come from `max_runs`, `max_jobs`, `max_artifacts`, and `max_deployments` (defaults and caps in the table above), plus at most 20 statuses per deployment. Hitting a window cap is not a failure: what was fetched commits as `partial` with a warning such as `runs_truncated`. Lease and heartbeat settings load from the environment (`ESHU_CICD_RUN_CLAIM_LEASE_TTL`, default 60s; `ESHU_CICD_RUN_HEARTBEAT_INTERVAL`, default 20s) and the heartbeat must be shorter than the lease or startup fails.
+
+## What operators see
+
+The main signal is the claim result and its failure class. A claim this collector cannot serve ends terminal with `invalid_config.<reason>` — the bare bucket is never emitted — where the reason names the wiring fault an operator can act on:
+
+| Failure class | Meaning |
+| --- | --- |
+| `invalid_config.activation` | Activation cannot load, or unknown provider or auth mode |
+| `invalid_config.claim_binding` | Claim kind, instance, generation, or fencing does not match |
 | `invalid_config.target_scope_mismatch` | Claim scope has no registered target |
-| `invalid_config.missing_host_token` | `host_minted` claim without the request token object |
-| `invalid_config.empty_host_token` | Request token object with a blank token |
-| `invalid_config.host_token_shape` | Request token is not the `{token, scope_id}` object |
+| `invalid_config.missing_host_token` | `host_minted` claim arrived without the host token object |
+| `invalid_config.empty_host_token` | Host token object arrived with a blank token |
+| `invalid_config.host_token_shape` | Host token is not the `{token, scope_id}` object |
 | `invalid_config.host_token_scope_mismatch` | Token `scope_id` differs from the target scope |
-| `invalid_config.github_app_mint_failed` | Direct-App mint refused (distinct from host faults) |
-| `invalid_config.provider_denied` | Provider 401/403: credential refused at claim scope |
-| `invalid_config.provider_not_found` | Provider 404: repository/run/pipeline missing |
-| `invalid_config.provider_rejected` | Any other deterministic provider refusal |
+| `invalid_config.github_app_mint_failed` | Direct-App mint was refused |
+| `invalid_config.provider_denied` | Provider answered 401/403: credential refused for this scope |
+| `invalid_config.provider_not_found` | Provider answered 404: repository, run, or pipeline missing |
+| `invalid_config.provider_rejected` | Any other fixed provider refusal |
 
-Transient faults (transport, 5xx, malformed payload, first-request
-throttle) release the claim `retryable` (`transient_transport`) with
-bounded provider retry guidance instead. A throttle observed mid-window
-commits the fetched prefix `partial` with a `rate_limited` warning, and
-a `max_runs` ceiling cut commits `partial` with a `runs_truncated`
-warning — per the SHIM_MAP outcome table.
+Short-lived faults (transport errors, 5xx answers, malformed payloads, a throttle on the first request) instead release the claim `retryable` with the provider's suggested wait, clamped to between 30 seconds and 5 minutes. A throttle seen mid-window commits what was already fetched as `partial` with a `rate_limited` warning.
 
-## Non-goals (core-owned, stay in `eshu-hq/eshu`)
+The collector writes one bounded diagnostic line per failed claim to standard error (stderr). The host keeps only the byte count, so that line helps only in local runs and tests. This repository emits no metrics: the manifest declares the prefix `eshu_dp_cicd_run_collector_`, but nothing is emitted under it. The `eshu_dp_ci_cd_run_*` signal names are preserved in `producer/telemetry.go` and their emission stays host-side.
 
-- Grant issuance, storage, revocation (#6709): authorization here is a
-  fail-closed stub. Nothing emits until core-issued grants land.
-- Claim control (lease, heartbeat, supervision) and the commit boundary
-  (admission, projection, persistence, fencing).
-- Durable watermark state (migration 078, #5429 gap detection).
-- Telemetry emission (names preserved verbatim; emission stays host-side).
+## Keeping the same identity when you switch
 
-## Open gaps
+If this collector replaces Eshu's built-in CI/CD run collector, `host.scope.id` must equal the old target's scope ID and `host.sourceSystem` must be `ci_cd_run`, or every stored fact key changes. The activation instance ID must instead be new: a duplicate collector instance ID stops the coordinator from starting. Only the `collector_instance_id` field inside the payload changes. Read the real values from the live built-in setup, never copy the placeholders in `config.example.yaml`.
 
-P1 — no SDK-exported canonical repository-ID helper
-(`repositoryidentity.CanonicalRepositoryID` is core-owned). Payloads
-carry the raw `provider_repository_id` provenance and leave
-`repository_id` unset; the reducer treats that as UNRESOLVED, never a
-decode error, so this degrades to no false joins rather than wrong
-joins. Stable keys are otherwise byte-identical to in-tree
-(`identity.StableID` shares the exact algorithm); only
-`ci.pipeline_definition` keys differ until the helper lands.
+One known gap: payloads carry the raw provider repository ID and leave the canonical `repository_id` unset, because the shared SDK does not yet export the ID helper. Eshu core treats that as unresolved (no joins) rather than an error, so the gap degrades to missing links, never wrong ones. Stable keys are otherwise identical to the built-in collector's; only `ci.pipeline_definition` keys differ until the helper lands.
 
-P1 — no SDK-exported opaque-credential URI predicate (the SDK keeps its
-equivalent unexported in `validation.go`). The port uses a conservative
-stdlib approximation with the SDK `Validator` as the fail-closed
-backstop; a planted credentialed `source_ref` URI is rejected, proved by
-test.
+## Permission to publish facts
+
+All 9 fact kinds belong to Eshu core, so the host refuses them without a producer grant (written permission for this component to publish that kind). `grant.example.json` lists the 9 requests, each tied to this component and version and scoped to `ci_cd_run`. Eshu core issues, stores, and revokes grants; this repository only ships the request and never emits past host grant admission.
+
+## Eshu dependencies
+
+Exact versions from `go.mod`. Do not substitute another SDK line.
+
+| Module | Version |
+| --- | --- |
+| Go | `1.26.10` |
+| `github.com/eshu-hq/eshu-sdk/collector` | `v0.2.0-rc.1` |
+| `github.com/eshu-hq/eshu-sdk/factschema` | `v0.1.0-rc.5` |
+| `gopkg.in/yaml.v3` | `v3.0.1` |
+
+The component ID is `dev.eshu.collector.cicd-run`, version `0.1.2`, collector kind `ci_cd_run`. It declares support for Eshu core `>=0.0.5 <0.2.0` and speaks `collector-sdk/v1alpha1` over the process adapter (see `manifest.yaml`). Check that range against your core version before enabling it; a mismatch makes the host refuse the component.
+
+## What it never does
+
+- It never starts, retries, cancels, or changes a pipeline, and it never stores anything itself — the host owns claim control, the commit boundary, and durable position state.
+- It never issues or stores producer grants; grant issuance, storage, and revocation stay in Eshu core.
+- It never emits `ci.workflow_image_evidence` (another collector owns it), and it never emits facts alongside a failure state.
+- It never imports Eshu core internals, and it never puts tokens, private keys, credential-bearing web addresses, or provider payload text into facts, logs, or status messages.
+
+## Build, test, and release
+
+```bash
+make ci     # lint + test + race; the full local check CI runs
+make lint   # vet, golangci-lint, format check, tidy check, 500-line cap
+make test   # build + full test suite
+make race   # race suite + coverage floor
+```
+
+The test suite checks the 9-kind output against saved facts from the built-in collector (kinds, stable keys, and failure signals, including hostile inputs failing closed) and validates emitted results against the pinned SDK's own validator. Releases run from `.github/workflows/release.yml` on every push to `main` and on version tags. Nothing runs for a pull request, and the workflow deploys nothing. Tag `v<manifest version>` on the protected `main` head to publish: the workflow builds, pushes, signs, and attests `ghcr.io/eshu-hq/eshu-collector-cicd-run`; a tag on any other commit fails before anything is built. Copy the digest from the job summary into the activation's seed image.
+
+## Docs and related projects
+
+- `config.example.yaml` — full setup example with all three auth shapes. `manifest.yaml` — component identity, fact list, and core range. `grant.example.json` — the 9 grant requests. `producer/` — the fetch-plus-emission package.
+- [Eshu core](https://github.com/eshu-hq/eshu) — the host that runs this collector.
+- [eshu-sdk](https://github.com/eshu-hq/eshu-sdk) — shared SDK modules.
+- [eshu-deploy](https://github.com/eshu-hq/eshu-deploy) — deployment examples and reference setups.
+
+## Contributing
+
+See `CONTRIBUTING.md`. In short: run `make ci` before pushing; it runs the same lint, test, and race checks as CI. Credentials travel by env reference, never inline, and address-cleaning tests must stay green.
