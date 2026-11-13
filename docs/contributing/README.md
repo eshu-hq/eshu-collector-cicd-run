@@ -4,7 +4,7 @@ Thanks for helping. The full rules live in [eshu-collector-cicd-run's CONTRIBUTI
 
 ## Set yourself up
 
-You'll need Go at the version pinned in `go.mod` (currently `1.26.10`) and `golangci-lint` v2.12.2. The root [CONTRIBUTING.md](../../CONTRIBUTING.md) shows the install command. Docker only matters if you want to exercise the image lane locally.
+You'll need Go at the version pinned in `go.mod` (currently `1.26.11`) and `golangci-lint` v2.12.2. The root [CONTRIBUTING.md](../../CONTRIBUTING.md) shows the install command. Docker only matters if you want to exercise the image lane locally.
 
 ## Check your work
 
