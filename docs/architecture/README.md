@@ -12,7 +12,7 @@ The workhorse is the `producer/` package: provider fetching and normalization fo
 
 ## Tech stack
 
-The binary is a static, pure-Go build. The [Dockerfile](../../Dockerfile) compiles `./cmd/collector` with `CGO_ENABLED=0` and `-trimpath` on `golang:1.26.10-alpine`, then copies the result onto a distroless static base (`gcr.io/distroless/static-debian12:nonroot`) with no shell and no package manager. It runs as user `65532`, and the entrypoint serves one claim from stdin by default (`--sdk-stdio`), with `seed --dest DIR` as the self-install path an init container uses.
+The binary is a static, pure-Go build. The [Dockerfile](../../Dockerfile) compiles `./cmd/collector` with `CGO_ENABLED=0` and `-trimpath` on `golang:1.26.11-alpine`, then copies the result onto a distroless static base (`gcr.io/distroless/static-debian12:nonroot`) with no shell and no package manager. It runs as user `65532`, and the entrypoint serves one claim from stdin by default (`--sdk-stdio`), with `seed --dest DIR` as the self-install path an init container uses.
 
 ## Versions it pins
 
@@ -20,7 +20,7 @@ Exact versions from `go.mod`. Please don't substitute another SDK line.
 
 | Module | Version |
 | --- | --- |
-| Go | `1.26.10` |
+| Go | `1.26.11` |
 | `github.com/eshu-hq/eshu-sdk/collector` | `v0.2.0-rc.1` |
 | `github.com/eshu-hq/eshu-sdk/factschema` | `v0.1.0-rc.5` |
 | `gopkg.in/yaml.v3` | `v3.0.1` |
