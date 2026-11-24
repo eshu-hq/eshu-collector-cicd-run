@@ -52,6 +52,7 @@ Start at the [documentation index](docs/README.md) if you'd like a map, or jump 
 - [Eshu core](https://github.com/eshu-hq/eshu) runs this collector and owns the final say on what's stored.
 - [eshu-sdk](https://github.com/eshu-hq/eshu-sdk) holds the shared collector and fact-schema modules.
 - [eshu-deploy](https://github.com/eshu-hq/eshu-deploy) has deployment examples you can copy from.
+- [Collector and Reducer Readiness](https://github.com/eshu-hq/eshu/blob/main/docs/public/reference/collector-reducer-readiness.md), [Start Here](https://github.com/eshu-hq/eshu/blob/main/docs/public/start-here.md), and the 31-repo [Repository Map](https://github.com/eshu-hq/eshu/blob/main/REPOSITORIES.md).
 
 ## Development
 
